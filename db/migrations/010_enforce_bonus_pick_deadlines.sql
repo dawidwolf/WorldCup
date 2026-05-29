@@ -17,7 +17,7 @@ BEGIN
   SELECT MIN(kickoff_utc), MAX(kickoff_utc)
     INTO tournament_start, round_one_cutoff
   FROM public.matches
-  WHERE round = 'Group Stage'
+  WHERE (lower(trim(coalesce(round, ''))) = 'group stage' OR group_turn = 1)
     AND group_turn = 1
     AND kickoff_utc IS NOT NULL;
 
@@ -98,6 +98,10 @@ BEGIN
 
   IF now() >= tournament_start THEN
     IF NEW.predicted_tournament_winner_id IS DISTINCT FROM OLD.predicted_tournament_winner_id THEN
+      IF OLD.predicted_tournament_winner_id IS NOT NULL THEN
+        RAISE EXCEPTION 'Winner pick is locked after tournament kickoff. Missing picks can still be added until Group Stage Turn 1 cutoff.';
+      END IF;
+
       IF OLD.late_winner_penalty IS DISTINCT FROM TRUE AND NEW.predicted_tournament_winner_id IS NOT NULL THEN
         INSERT INTO public.user_points_events (
           user_id,
@@ -124,6 +128,10 @@ BEGIN
     END IF;
 
     IF NEW.predicted_top_scorer_id IS DISTINCT FROM OLD.predicted_top_scorer_id THEN
+      IF OLD.predicted_top_scorer_id IS NOT NULL THEN
+        RAISE EXCEPTION 'Top scorer pick is locked after tournament kickoff. Missing picks can still be added until Group Stage Turn 1 cutoff.';
+      END IF;
+
       IF OLD.late_scorer_penalty IS DISTINCT FROM TRUE AND NEW.predicted_top_scorer_id IS NOT NULL THEN
         INSERT INTO public.user_points_events (
           user_id,

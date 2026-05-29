@@ -19,7 +19,7 @@ BEGIN
   SELECT MIN(kickoff_utc), MAX(kickoff_utc)
     INTO tournament_start, round_one_cutoff
   FROM public.matches
-  WHERE round = 'Group Stage'
+  WHERE (lower(trim(coalesce(round, ''))) = 'group stage' OR group_turn = 1)
     AND group_turn = 1
     AND kickoff_utc IS NOT NULL;
 

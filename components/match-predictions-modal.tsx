@@ -177,12 +177,12 @@ export default function MatchPredictionsModal({ matchId, isOpen, onClose, active
                   const ea = a.exact_hits ?? 0
                   const eb = b.exact_hits ?? 0
                   if (eb !== ea) return eb - ea
-                  return (a.username || '').localeCompare(b.username || '')
+                  return String(a.username || '').toUpperCase().localeCompare(String(b.username || '').toUpperCase())
                 })
                 return sorted.map((p) => {
                   const home = p.display_home_score === '🔒' ? '-' : p.display_home_score
                   const away = p.display_away_score === '🔒' ? '-' : p.display_away_score
-                  const baseName = p.predictor_name ?? p.username ?? 'Unknown'
+                  const baseName = String(p.predictor_name ?? p.username ?? 'Unknown').toUpperCase()
                   const isMe = currentUserId != null && String(p.user_id) === String(currentUserId)
                   return (
                     <li key={`${p.user_id}-${baseName}`} className="flex items-center justify-between px-3 py-3">

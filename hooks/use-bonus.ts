@@ -2,9 +2,6 @@ import { useState, useEffect } from "react"
 import { supabase } from "@/lib/supabase"
 import { getAppTime } from "@/lib/time"
 
-const KICKOFF_UTC = "2026-06-11T19:00:00Z"
-const KICKOFF_MS = Date.parse(KICKOFF_UTC)
-
 export type DBTeam = {
   team_id: number;
   team_name: string;
@@ -32,16 +29,22 @@ export function useBonus(userId: number | null) {
 
   const [loading, setLoading] = useState(true)
   const [isLocked, setIsLocked] = useState(false)
+  const [currentTimeMs, setCurrentTimeMs] = useState(() => getAppTime().getTime())
+  const [tournamentStartMs, setTournamentStartMs] = useState<number | null>(null)
 
-  // Evaluate lockout based on getAppTime
+  // Keep the lock state fresh so the cards flip automatically as time moves.
   useEffect(() => {
-    const checkLock = () => {
-      setIsLocked(getAppTime().getTime() >= KICKOFF_MS)
+    const checkTime = () => {
+      setCurrentTimeMs(getAppTime().getTime())
     }
-    checkLock()
-    const interval = setInterval(checkLock, 60000)
+    checkTime()
+    const interval = setInterval(checkTime, 5000)
     return () => clearInterval(interval)
   }, [])
+
+  useEffect(() => {
+    setIsLocked(Boolean(tournamentStartMs && currentTimeMs >= tournamentStartMs))
+  }, [currentTimeMs, tournamentStartMs])
 
   useEffect(() => {
     if (!userId) return
@@ -49,10 +52,14 @@ export function useBonus(userId: number | null) {
     async function loadData() {
       setLoading(true)
 
-      const [teamsRes, playersRes, userRes] = await Promise.all([
+      const [teamsRes, playersRes, userRes, deadlineRes] = await Promise.all([
         supabase.from('teams').select('*').order('team_name'),
         supabase.from('player_stats').select('*').order('player_name'),
-        supabase.from('users').select('predicted_tournament_winner_id, predicted_top_scorer_id').eq('user_id', userId).single()
+        supabase.from('users').select('predicted_tournament_winner_id, predicted_top_scorer_id').eq('user_id', userId).single(),
+        supabase
+          .from('matches')
+          .select('kickoff_utc, is_finished, round, group_turn')
+          .order('kickoff_utc', { ascending: true })
       ])
 
       if (!teamsRes.error && teamsRes.data) {
@@ -76,6 +83,18 @@ export function useBonus(userId: number | null) {
       if (!userRes.error && userRes.data) {
         setSavedWinnerId(userRes.data.predicted_tournament_winner_id)
         setSavedScorerId(userRes.data.predicted_top_scorer_id)
+      }
+
+      if (!deadlineRes.error && deadlineRes.data) {
+        const kickoffTimes = deadlineRes.data
+          .map((row: any) => row.kickoff_utc)
+          .filter(Boolean)
+          .map((value: string) => Date.parse(value))
+          .filter((value: number) => !Number.isNaN(value))
+
+        if (kickoffTimes.length > 0) {
+          setTournamentStartMs(kickoffTimes[0])
+        }
       }
 
       setLoading(false)
@@ -145,6 +164,30 @@ export function useBonus(userId: number | null) {
     }
   }, [players.length])
 
+  useEffect(() => {
+    if (!userId) return
+
+    const channel = supabase
+      .channel('bonus-match-phase')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'matches' },
+        (payload: any) => {
+          const row = payload.new as any
+          if (!row) return
+
+          if (row.group_turn === 1 || String(row.round ?? '').trim().toLowerCase() === 'group stage') {
+            setCurrentTimeMs(getAppTime().getTime())
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      void supabase.removeChannel(channel)
+    }
+  }, [userId])
+
   const saveWinner = async (teamId: number | null) => {
     if (!userId || isLocked) return
     const { error } = await supabase.rpc('save_bonus_pick', {
@@ -176,6 +219,7 @@ export function useBonus(userId: number | null) {
     savedScorerId,
     goldenBootLeaders,
     isLocked,
+    tournamentStartMs,
     loading,
     saveWinner,
     saveScorer

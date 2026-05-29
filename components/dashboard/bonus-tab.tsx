@@ -52,8 +52,8 @@ export function BonusTab({ currentUserId, onSaved }: BonusTabProps) {
     player.player_name.toLowerCase().includes(scorerSearch.toLowerCase())
   )
 
-  const renderBadge = (hasSelection: boolean, isLocked: boolean) => {
-    if (isLocked) {
+  const renderBadge = (hasSelection: boolean, locked: boolean) => {
+    if (locked) {
       if (hasSelection) {
         return (
           <span className="bg-muted px-2 py-1 rounded-md text-xs font-medium text-muted-foreground flex items-center gap-1">
@@ -61,13 +61,14 @@ export function BonusTab({ currentUserId, onSaved }: BonusTabProps) {
           </span>
         )
       }
+
       return (
         <span className="bg-muted px-2 py-1 rounded-md text-xs font-medium text-muted-foreground">
           Locked
         </span>
       )
     }
-    
+
     if (hasSelection) {
       return (
         <span className="bg-primary/20 text-primary px-2 py-1 rounded-md text-xs font-medium flex items-center gap-1">
@@ -75,13 +76,16 @@ export function BonusTab({ currentUserId, onSaved }: BonusTabProps) {
         </span>
       )
     }
-    
+
     return (
       <span className="bg-destructive/20 text-destructive px-2 py-1 rounded-md text-xs font-medium animate-pulse">
         Closes soon
       </span>
     )
   }
+
+  const winnerCanEdit = !isLocked
+  const scorerCanEdit = !isLocked
 
   return (
     <div className="space-y-4">
@@ -102,18 +106,18 @@ export function BonusTab({ currentUserId, onSaved }: BonusTabProps) {
               type="text"
               value={winnerSearch}
               onChange={(e) => {
-                if (isLocked) return;
+                if (!winnerCanEdit) return;
                 setWinnerSearch(e.target.value)
                 if (localWinnerId) setLocalWinnerId(null)
                 setShowWinnerDropdown(true)
               }}
-              onFocus={() => { if (!isLocked) setShowWinnerDropdown(true) }}
+              onFocus={() => { if (winnerCanEdit) setShowWinnerDropdown(true) }}
               onBlur={() => setTimeout(() => setShowWinnerDropdown(false), 200)}
               placeholder={selectedWinner ? selectedWinner.team_name : "Search team..."}
-              readOnly={isLocked}
+              readOnly={!winnerCanEdit}
               className={cn(
                   "w-full bg-secondary/50 border border-border/50 rounded-xl pl-12 pr-10 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50",
-                  isLocked && "opacity-60 cursor-not-allowed"
+                  !winnerCanEdit && "opacity-60 cursor-not-allowed"
               )}
             />
             <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
@@ -164,18 +168,18 @@ export function BonusTab({ currentUserId, onSaved }: BonusTabProps) {
               type="text"
               value={scorerSearch}
               onChange={(e) => {
-                if (isLocked) return;
+                if (!scorerCanEdit) return;
                 setScorerSearch(e.target.value)
                 if (localScorerId) setLocalScorerId(null)
                 setShowScorerDropdown(true)
               }}
-              onFocus={() => { if (!isLocked) setShowScorerDropdown(true) }}
+              onFocus={() => { if (scorerCanEdit) setShowScorerDropdown(true) }}
               onBlur={() => setTimeout(() => setShowScorerDropdown(false), 200)}
               placeholder={selectedScorer ? selectedScorer.player_name : "Search player..."}
-              readOnly={isLocked}
+              readOnly={!scorerCanEdit}
               className={cn(
                   "w-full bg-secondary/50 border border-border/50 rounded-xl pl-12 pr-10 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50",
-                  isLocked && "opacity-60 cursor-not-allowed"
+                  !scorerCanEdit && "opacity-60 cursor-not-allowed"
               )}
             />
             <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />

@@ -3,11 +3,10 @@
 import { useState } from "react"
 import type { PostgrestError } from "@supabase/supabase-js"
 import { supabase } from "@/lib/supabase"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp"
 import { toast } from "sonner"
 import { Spinner } from "@/components/ui/spinner"
 
@@ -25,8 +24,12 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
   const [username, setUsername] = useState("")
   const [pin, setPin] = useState("")
 
+  const handleUsernameChange = (value: string) => {
+    setUsername(value.toUpperCase())
+  }
+
   const handleRegister = async () => {
-    const cleanUsername = username.trim().toLowerCase()
+    const cleanUsername = username.trim().toUpperCase()
     const cleanPin = pin.trim()
     if (cleanUsername.length < 3) {
       toast.error("Username must be at least 3 characters")
@@ -52,7 +55,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
 
       await setCurrentUserSession(data[0].user_id)
       toast.success("Account created!")
-      onSuccess({ user_id: data[0].user_id, username: data[0].username })
+      onSuccess({ user_id: data[0].user_id, username: String(data[0].username || "").toUpperCase() })
     } catch (err) {
       const e = err as PostgrestError & { message?: string }
 
@@ -77,7 +80,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
   }
 
   const handleLogin = async () => {
-    const cleanUsername = username.trim().toLowerCase()
+    const cleanUsername = username.trim().toUpperCase()
     const cleanPin = pin.trim()
     if (!cleanUsername || cleanPin.length !== 4) {
       toast.error("Please enter username and 4-digit PIN")
@@ -126,8 +129,8 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
     <div className="flex flex-col items-center justify-center min-h-[80vh] px-4">
       <div className="w-full max-w-md space-y-6">
         <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold tracking-tighter text-primary">WC 2026 Predictor</h1>
-          <p className="text-muted-foreground">Join the world stage</p>
+          <h1 className="text-3xl font-bold tracking-tighter text-primary">World Cup Predictor</h1>
+          <p className="text-muted-foreground">Predict the matches of the 2026 FIFA World Cup</p>
         </div>
 
         <Tabs defaultValue="login" className="w-full">
@@ -136,29 +139,29 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
             <TabsTrigger value="register" className="h-full rounded-xl font-bold uppercase tracking-wide text-xs">Sign up</TabsTrigger>
           </TabsList>
           
-          <div className="min-h-[300px]">
+          <div className="min-h-[260px]">
             <TabsContent value="login" className="mt-4 focus-visible:outline-none">
               <Card className="border-border/40 shadow-xl shadow-black/20 bg-card/80 backdrop-blur-sm rounded-3xl overflow-hidden">
-                <CardContent className="space-y-4 pt-6 pb-6 px-6">
+                <CardContent className="space-y-3.5 pt-1 pb-5 px-6">
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest ml-1">Username</label>
+                    <label className="text-sm font-bold text-muted-foreground uppercase tracking-widest ml-1">Username</label>
                     <Input 
-                      placeholder="e.g. SoccerKing" 
+                      placeholder="M JACKSON" 
                       value={username}
-                      onChange={(e) => setUsername(e.target.value)}
+                      onChange={(e) => handleUsernameChange(e.target.value)}
                       disabled={loading}
                       className="bg-secondary/50 border-primary/20 h-12 rounded-xl text-center text-base placeholder:text-muted-foreground/30"
                     />
                   </div>
                   <div className="space-y-1.5 flex flex-col items-center">
-                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest ml-1 self-start">Passcode (4 digits)</label>
+                    <label className="text-sm font-bold text-muted-foreground uppercase tracking-widest ml-1 self-start">Passcode (4 digits)</label>
                     <Input 
                       type="text"
                       inputMode="numeric"
                       pattern="[0-9]*"
                       autoComplete="one-time-code"
                       maxLength={4}
-                      placeholder="e.g. 1234" 
+                      placeholder="1234" 
                       value={pin}
                       onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
                       disabled={loading}
@@ -179,26 +182,26 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
 
             <TabsContent value="register" className="mt-4 focus-visible:outline-none">
               <Card className="border-border/40 shadow-xl shadow-black/20 bg-card/80 backdrop-blur-sm rounded-3xl overflow-hidden">
-                <CardContent className="space-y-4 pt-6 pb-6 px-6">
+                <CardContent className="space-y-3.5 pt-1 pb-5 px-6">
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest ml-1">Username</label>
+                    <label className="text-sm font-bold text-muted-foreground uppercase tracking-widest ml-1">Username</label>
                     <Input 
-                      placeholder="e.g. SoccerKing" 
+                      placeholder="M JACKSON" 
                       value={username}
-                      onChange={(e) => setUsername(e.target.value)}
+                      onChange={(e) => handleUsernameChange(e.target.value)}
                       disabled={loading}
                       className="bg-secondary/50 border-primary/20 h-12 rounded-xl text-center text-base placeholder:text-muted-foreground/30"
                     />
                   </div>
                   <div className="space-y-1.5 flex flex-col items-center">
-                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest ml-1 self-start">Passcode (4 digits)</label>
+                    <label className="text-sm font-bold text-muted-foreground uppercase tracking-widest ml-1 self-start">Passcode (4 digits)</label>
                     <Input 
                       type="text"
                       inputMode="numeric"
                       pattern="[0-9]*"
                       autoComplete="one-time-code"
                       maxLength={4}
-                      placeholder="e.g. 1234" 
+                      placeholder="1234" 
                       value={pin}
                       onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
                       disabled={loading}

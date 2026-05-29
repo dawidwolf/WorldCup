@@ -172,7 +172,7 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
           if (!u) return null
           return {
             id: u.user_id,
-            name: u.username,
+            name: String(u.username || "").toUpperCase(),
             points: u.points_total || 0,
             exactHits: u.exact_hits || 0,
             hits: u.hits_total || 0,
@@ -269,7 +269,7 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
     // For now, we don't have full stats in the leaderboard query, so we use placeholders or simple math
     // In a real app, you might fetch this separately in the Profile modal or include it in the query
     return {
-      username: player.name,
+      username: player.name.toUpperCase(),
       rank: player.rank,
       userPoints: player.points,
         selectedWinner: player.winnerPick !== "🏳️" ? { code: player.winnerCode, name: "", flag: player.winnerPick } : null,
@@ -291,7 +291,7 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
     <div className="space-y-4">
       <div className="px-1">
         <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-[0.2em]">
-          {poolName ? `${poolName} Leaderboard` : "Global Leaderboard"}
+          {poolName ? `${poolName.toUpperCase()} Leaderboard` : "Global Leaderboard"}
         </h2>
       </div>
 
@@ -348,7 +348,7 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
                   friend.isCurrentUser && "text-primary italic"
                 )}
               >
-                {friend.name}
+                {friend.name.toUpperCase()}
                 {friend.isCurrentUser && " (You)"}
               </span>
             </div>
@@ -392,7 +392,7 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
       <Dialog open={showInvite} onOpenChange={setShowInvite}>
         <DialogContent className="w-[calc(100%-32px)] max-w-sm rounded-2xl bg-card border-border/50 shadow-2xl p-6 mx-auto">
           <div className="text-center space-y-4">
-            <h3 className="text-lg font-bold text-foreground">Invite to <span className="text-primary">{poolName}</span></h3>
+            <h3 className="text-lg font-bold text-foreground">Invite to <span className="text-primary">{poolName?.toUpperCase()}</span></h3>
             <p className="text-sm text-muted-foreground">Share the link or scan the QR code for a quick join</p>
 
             <div className="flex items-center gap-2 mt-2 w-full">

@@ -25,7 +25,7 @@ export default function Home() {
   useEffect(() => {
     if (typeof window === "undefined") return
     const params = new URLSearchParams(window.location.search)
-    setInvitePoolName((params.get("pool") || "").trim())
+    setInvitePoolName((params.get("pool") || "").trim().toUpperCase())
   }, [])
 
   const setCurrentUserSession = async (userId: number) => {
@@ -34,7 +34,7 @@ export default function Home() {
   }
 
   const joinInvitePool = async (userId: number, poolName: string) => {
-    const normalizedPoolName = poolName.trim()
+    const normalizedPoolName = poolName.trim().toUpperCase()
     if (!normalizedPoolName) return null
 
     const { data: pool, error: joinError } = await supabase
@@ -76,7 +76,7 @@ export default function Home() {
             .single()
 
           if (dbUser && !error) {
-            setUser(dbUser)
+              setUser({ ...dbUser, username: String(dbUser.username || "").toUpperCase() })
             await setCurrentUserSession(dbUser.user_id)
             if (invitePoolName) {
               try {
@@ -116,14 +116,15 @@ export default function Home() {
   }, [invitePoolName])
 
   const handleAuthSuccess = async (newUser: { user_id: number; username: string }) => {
-    localStorage.setItem("wc2026_user", JSON.stringify(newUser))
+    const normalizedUser = { ...newUser, username: newUser.username.toUpperCase() }
+    localStorage.setItem("wc2026_user", JSON.stringify(normalizedUser))
     setLoading(true)
     try {
-      setUser(newUser)
-      await setCurrentUserSession(newUser.user_id)
+      setUser(normalizedUser)
+      await setCurrentUserSession(normalizedUser.user_id)
 
       if (invitePoolName) {
-        const invitedPool = await joinInvitePool(newUser.user_id, invitePoolName)
+        const invitedPool = await joinInvitePool(normalizedUser.user_id, invitePoolName)
         if (invitedPool) {
           setHasPool(true)
           setSelectedPoolId(invitedPool.pool_id)
@@ -168,7 +169,7 @@ export default function Home() {
   
   // Show PoolsScreen when no pool is selected. If the user belongs to exactly one
   // pool we auto-select it and show the Dashboard instead.
-  if (!hasSelectedPool) return <PoolsScreen userId={user.user_id} onJoined={handlePoolJoined} initialPoolName={invitePoolName} />
+  if (!hasSelectedPool) return <PoolsScreen userId={user.user_id} onJoined={handlePoolJoined} initialPoolName={invitePoolName} onBack={handleLogout} />
 
   return <Dashboard user={user} onLogout={handleLogout} onPoolsChanged={setHasPool} onActivePoolChange={setSelectedPoolId} onNavigateToPools={() => { setSelectedPoolId(null); setHasSelectedPool(false) }} activePoolId={selectedPoolId} />
 }
@@ -272,7 +273,7 @@ function Dashboard({ user, onLogout, onPoolsChanged, onActivePoolChange, onNavig
       }
     }
 
-    if (!confirm(`Are you sure you want to leave "${pool?.pool_name}"?`)) return
+    if (!confirm(`Are you sure you want to leave "${pool?.pool_name?.toUpperCase()}"?`)) return
 
     try {
       const { error } = await supabase
@@ -287,7 +288,7 @@ function Dashboard({ user, onLogout, onPoolsChanged, onActivePoolChange, onNavig
       setPools(remainingPools)
       onPoolsChanged(remainingPools.length > 0)
 
-      toast.success(`Left pool "${pool?.pool_name}"`)
+      toast.success(`Left pool "${pool?.pool_name?.toUpperCase()}"`)
 
       if (activePoolId === poolId) {
         if (remainingPools.length > 0) {
@@ -305,12 +306,12 @@ function Dashboard({ user, onLogout, onPoolsChanged, onActivePoolChange, onNavig
     switch (activeTab) {
       case "matches":
         return <MatchesTab currentUserId={user.user_id} activeFilter={activeFilter} onFilterChange={setActiveFilter} activePoolId={activePoolId ?? pools.find(p => p.pool_id === activePoolId)?.pool_id ?? pools[0]?.pool_id} />
-      case "rankings": return <div className="pt-20 px-4"><RankingsTab poolId={activePoolId ?? pools[0]?.pool_id} poolName={pools.find(p => p.pool_id === activePoolId)?.pool_name ?? pools[0]?.pool_name} currentUserId={user.user_id} /></div>
+      case "rankings": return <div className="pt-20 px-4"><RankingsTab poolId={activePoolId ?? pools[0]?.pool_id} poolName={(pools.find(p => p.pool_id === activePoolId)?.pool_name ?? pools[0]?.pool_name)?.toUpperCase()} currentUserId={user.user_id} /></div>
       case "players": return <div className="pt-20 px-4"><BonusTab currentUserId={user.user_id} onSaved={fetchPicks} /></div>
       case "profile": return (
         <div className="pt-20 px-4">
-          <ProfileTab 
-            username={user.username} 
+            <ProfileTab 
+              username={user.username.toUpperCase()} 
             currentUserId={user.user_id}
             rank={1} 
             userPoints={0} 
@@ -331,7 +332,7 @@ function Dashboard({ user, onLogout, onPoolsChanged, onActivePoolChange, onNavig
 
   return (
     <div className="min-h-screen bg-background pb-24 max-w-md mx-auto border-x border-primary/5">
-      <Header groupName={pools.find(p => p.pool_id === activePoolId)?.pool_name || pools[0]?.pool_name || "Global Pool"} groupCode={(pools.find(p => p.pool_id === activePoolId)?.pool_name?.substring(0, 4).toUpperCase() || pools[0]?.pool_name?.substring(0, 4).toUpperCase() || "MAIN")} rank={1} points={0} onNavigateToRankings={() => setActiveTab("rankings")} />
+      <Header groupName={(pools.find(p => p.pool_id === activePoolId)?.pool_name || pools[0]?.pool_name || "Global Pool").toUpperCase()} groupCode={(pools.find(p => p.pool_id === activePoolId)?.pool_name?.substring(0, 4).toUpperCase() || pools[0]?.pool_name?.substring(0, 4).toUpperCase() || "MAIN")} rank={1} points={0} onNavigateToRankings={() => setActiveTab("rankings")} />
       {renderTabContent()}
       <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
     </div>

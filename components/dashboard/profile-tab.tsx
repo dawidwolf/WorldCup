@@ -308,7 +308,7 @@ export function ProfileTab({
         onClick={onNavigateToRankings}
         className="w-full bg-card rounded-2xl p-4 shadow-lg shadow-black/20 border border-border/50 flex items-center justify-between text-left hover:border-primary/50 transition-colors"
       >
-        <span className="text-lg font-bold text-foreground">{username}</span>
+        <span className="text-lg font-bold text-foreground">{username.toUpperCase()}</span>
         <div className="text-right">
           <p className="text-lg font-bold text-primary">#{userRankLocal ?? rank}</p>
           <p className="text-sm text-muted-foreground">{(userPointsLocal ?? userPoints) || 0} pts</p>
@@ -380,7 +380,7 @@ export function ProfileTab({
                 pools.map((pool) => (
                   <div key={pool.pool_id} className="flex items-center justify-between py-1.5 border-b border-border/30 last:border-0 last:pb-0">
                     <div className="flex items-center gap-2">
-                      <span className="font-semibold text-sm text-foreground">{pool.pool_name}</span>
+                      <span className="font-semibold text-sm text-foreground">{pool.pool_name.toUpperCase()}</span>
                       {pool.is_admin && (
                         <span className="bg-primary/20 text-primary text-[8px] px-1.5 py-0.5 rounded flex items-center gap-1 font-bold uppercase tracking-wider border border-primary/30">
                           <Shield className="w-2.5 h-2.5" /> Admin
@@ -461,7 +461,7 @@ function StatWithArrows({ label, value, arrow, toneClass }: { label: string; val
   return (
     <div className="flex flex-col items-center">
       <div className="flex items-center gap-1">
-        <div className="w-14 flex justify-center">
+        <div className="w-10 flex justify-center">
           <p className={`text-lg font-bold ${toneClass} font-mono`}>{value}</p>
         </div>
         <div className="flex flex-col items-center -ml-1">
@@ -469,7 +469,7 @@ function StatWithArrows({ label, value, arrow, toneClass }: { label: string; val
           <ArrowDown className={`w-3 h-3 ${downClass} mt-0.5`} strokeWidth={3} />
         </div>
       </div>
-      <div className="mt-1 w-14 text-center">
+      <div className="mt-1 w-10 text-center">
         <p className="text-xs text-muted-foreground">{label}</p>
       </div>
     </div>
