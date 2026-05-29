@@ -355,11 +355,11 @@ export function ProfileTab({
       <div className="bg-card rounded-2xl p-4 shadow-lg shadow-black/20 border border-border/50">
         <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Your Stats</h3>
         <div className="grid grid-cols-4 gap-3 text-center">
-          <StatWithArrows label="Hits" value={displayStats.hits} arrow={arrowState.hits} toneClass="text-foreground" />
-          <StatWithArrows label="Exact" value={displayStats.exactHits} arrow={arrowState.exact} toneClass="text-primary" />
-          <StatWithArrows label="Misses" value={displayStats.misses} arrow={arrowState.misses} toneClass="text-destructive" />
-          <StatWithArrows label="Accuracy" value={`${accuracy}%`} arrow={arrowState.accuracy} toneClass="text-primary" />
-        </div>
+                <StatWithArrows label="Hits" value={displayStats.hits} arrow={arrowState.hits} toneClass="text-foreground" />
+                <StatWithArrows label="Exact" value={displayStats.exactHits} arrow={arrowState.exact} toneClass="text-primary" />
+                <StatWithArrows label="Misses" value={displayStats.misses} arrow={arrowState.misses} toneClass="text-destructive" />
+                <StatWithArrows label="Accuracy" value={`${accuracy}%`} arrow={arrowState.accuracy} toneClass="text-primary" showArrows={false} />
+              </div>
       </div>
 
       {!isPublicView && (
@@ -454,9 +454,22 @@ export function ProfileTab({
 }
 
 // Small helper component to render value with vertical arrows
-function StatWithArrows({ label, value, arrow, toneClass }: { label: string; value: number | string; arrow: string; toneClass: string }) {
+function StatWithArrows({ label, value, arrow, toneClass, showArrows = true }: { label: string; value: number | string; arrow?: string; toneClass: string; showArrows?: boolean }) {
   const upClass = arrow === 'up' ? 'text-emerald-500' : 'text-muted-foreground opacity-40'
   const downClass = arrow === 'down' ? 'text-destructive' : 'text-muted-foreground opacity-40'
+
+  if (!showArrows) {
+    return (
+      <div className="flex flex-col items-center">
+        <div className="w-10 flex justify-center">
+          <p className={`text-lg font-bold ${toneClass} font-mono`}>{value}</p>
+        </div>
+        <div className="mt-1 w-10 text-center">
+          <p className="text-xs text-muted-foreground">{label}</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col items-center">

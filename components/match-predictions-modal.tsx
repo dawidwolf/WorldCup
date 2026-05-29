@@ -30,6 +30,7 @@ interface Props {
 export default function MatchPredictionsModal({ matchId, isOpen, onClose, activePoolId, currentUserId, isLive }: Props) {
   const [predictions, setPredictions] = useState<PredictionRow[]>([])
   const [loading, setLoading] = useState(false)
+  const [matchInfo, setMatchInfo] = useState<any | null>(null)
   const [Motion, setMotion]: any = useState(null)
   const [visibleMotionReady, setVisibleMotionReady] = useState<boolean>(false)
 
@@ -63,6 +64,70 @@ export default function MatchPredictionsModal({ matchId, isOpen, onClose, active
         if (error) throw error
         if (!mounted) return
         setPredictions((data || []) as PredictionRow[])
+
+        // Also fetch match final score as a fallback when view hides scores
+        try {
+          const { data: matchData } = await supabase
+            .from('matches')
+            .select('home_score,away_score,is_finished')
+            .eq('match_id', matchId)
+            .maybeSingle()
+          if (mounted) setMatchInfo(matchData || null)
+        } catch (e) {
+          if (mounted) setMatchInfo(null)
+        }
+
+        // If the view hid scores (all display_* are null/empty), attempt a fallback
+        try {
+          const hasVisible = Array.isArray(data) && data.some((r: any) => r && r.display_home_score != null && String(r.display_home_score).trim() !== '')
+          if (!hasVisible && activePoolId != null) {
+            // Fetch raw predictions and user info, then filter by pool membership
+            const { data: rawPreds } = await supabase
+              .from('predictions')
+              .select('match_id, user_id, predicted_home_score, predicted_away_score')
+              .eq('match_id', matchId)
+
+            const preds = Array.isArray(rawPreds) ? rawPreds : []
+            const userIds = preds.map((p: any) => p.user_id).filter(Boolean)
+
+            if (userIds.length > 0) {
+              const { data: members } = await supabase
+                .from('user_pools')
+                .select('user_id')
+                .in('user_id', userIds)
+                .eq('pool_id', activePoolId)
+
+              const memberIds = (Array.isArray(members) ? members : []).map((m: any) => m.user_id)
+
+              const { data: usersData } = await supabase
+                .from('users')
+                .select('user_id, username, points_total, exact_hits')
+                .in('user_id', memberIds)
+
+              const usersMap = new Map<number, any>((Array.isArray(usersData) ? usersData : []).map((u: any) => [u.user_id, u]))
+
+              const fallback: PredictionRow[] = preds
+                .filter((p: any) => memberIds.includes(p.user_id))
+                .map((p: any) => ({
+                  user_id: p.user_id,
+                  username: usersMap.get(p.user_id)?.username ?? undefined,
+                  predictor_name: usersMap.get(p.user_id)?.username ?? undefined,
+                  display_home_score: p.predicted_home_score != null ? String(p.predicted_home_score) : null,
+                  display_away_score: p.predicted_away_score != null ? String(p.predicted_away_score) : null,
+                  is_finished: matchInfo?.is_finished ?? false,
+                  points_delta: null,
+                  points_total: usersMap.get(p.user_id)?.points_total ?? null,
+                  exact_hits: usersMap.get(p.user_id)?.exact_hits ?? null,
+                }))
+
+              if (fallback.length > 0) {
+                setPredictions(fallback)
+              }
+            }
+          }
+        } catch (e) {
+          // ignore fallback errors
+        }
       } catch (err) {
         console.error("Failed to load predictions", err)
         setPredictions([])
@@ -118,25 +183,49 @@ export default function MatchPredictionsModal({ matchId, isOpen, onClose, active
   } : { className: "transition-transform duration-200 ease-out" }
 
   const renderBadge = (p: PredictionRow) => {
-    if (!p.is_finished) return null
-    const pts = p.points_delta ?? 0
-    if (pts === 3) {
+    // compute points using match final score so modal matches MatchCard logic
+    if (!matchInfo || !matchInfo.is_finished) return null
+    if (matchInfo.home_score == null || matchInfo.away_score == null) return null
+
+    const parseScore = (v: any) => {
+      if (v == null) return null
+      const s = String(v).trim()
+      if (s === '' || s === '-' || s === '🔒') return null
+      const n = parseInt(s, 10)
+      return Number.isNaN(n) ? null : n
+    }
+
+    const ph = parseScore(p.display_home_score)
+    const pa = parseScore(p.display_away_score)
+
+    let amount = 0
+    if (ph == null || pa == null) {
+      amount = 0
+    } else {
+      const actH = matchInfo.home_score
+      const actA = matchInfo.away_score
+      if (actH === ph && actA === pa) amount = 3
+      else if (Math.sign(actH - actA) === Math.sign(ph - pa)) amount = 1
+      else amount = 0
+    }
+
+    if (amount === 3) {
       return (
-        <span className="ml-2 inline-flex items-center text-sm font-semibold bg-emerald-600/10 text-emerald-700 px-2 py-1 rounded-lg shadow-[0_0_12px_rgba(16,185,129,0.12)]">
-          +3 PTS (Exact)
+        <span className="ml-2 inline-flex items-center text-xs font-medium px-3 py-1 rounded-full bg-emerald-600 text-white">
+          3 pts
         </span>
       )
     }
-    if (pts === 1) {
+    if (amount === 1) {
       return (
-        <span className="ml-2 inline-flex items-center text-sm font-semibold bg-sky-100 text-sky-700 px-2 py-1 rounded-lg">
-          +1 PT (Outcome)
+        <span className="ml-2 inline-flex items-center text-xs font-medium px-3 py-1 rounded-full border border-emerald-500 text-emerald-500 bg-transparent">
+          1 pts
         </span>
       )
     }
     return (
-      <span className="ml-2 inline-flex items-center text-sm font-semibold bg-gray-100 text-gray-600 px-2 py-1 rounded-lg">
-        0 PTS
+      <span className="ml-2 inline-flex items-center text-xs font-medium px-3 py-1 rounded-full bg-muted text-muted-foreground">
+        0 pts
       </span>
     )
   }
@@ -180,8 +269,8 @@ export default function MatchPredictionsModal({ matchId, isOpen, onClose, active
                   return String(a.username || '').toUpperCase().localeCompare(String(b.username || '').toUpperCase())
                 })
                 return sorted.map((p) => {
-                  const home = p.display_home_score === '🔒' ? '-' : p.display_home_score
-                  const away = p.display_away_score === '🔒' ? '-' : p.display_away_score
+                  const home = (p.display_home_score === '🔒' || p.display_home_score == null || p.display_home_score === '') ? '-' : p.display_home_score
+                  const away = (p.display_away_score === '🔒' || p.display_away_score == null || p.display_away_score === '') ? '-' : p.display_away_score
                   const baseName = String(p.predictor_name ?? p.username ?? 'Unknown').toUpperCase()
                   const isMe = currentUserId != null && String(p.user_id) === String(currentUserId)
                   return (
@@ -210,7 +299,7 @@ export default function MatchPredictionsModal({ matchId, isOpen, onClose, active
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onClose?.() }}
-            className="w-full py-3 rounded-xl bg-primary text-white font-semibold shadow-md active:scale-[0.99] transition-transform"
+            className="w-full py-3 rounded-xl bg-card hover:bg-muted text-muted-foreground font-semibold transition-all border border-red-500/40"
           >
             Close
           </button>

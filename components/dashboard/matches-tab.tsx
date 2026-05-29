@@ -631,7 +631,7 @@ export function MatchesTab({ currentUserId, activeFilter, onFilterChange, active
         )}
         {filteredMatches.length === 0 && (
           <div className="text-center py-10">
-            <p className="text-muted-foreground">No matches found.</p>
+            <p className="text-muted-foreground">No matches today.</p>
           </div>
         )}
       </div>

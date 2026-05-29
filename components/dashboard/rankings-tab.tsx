@@ -436,7 +436,7 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
               
               <button 
                 onClick={closeProfile}
-                className="w-full mt-4 bg-card hover:bg-muted text-muted-foreground py-4 rounded-2xl font-bold uppercase tracking-widest transition-all border border-border/50 shadow-xl active:scale-[0.98]"
+                className="w-full mt-4 bg-card hover:bg-muted text-muted-foreground py-4 rounded-2xl font-bold uppercase tracking-widest transition-all border border-red-500/40 shadow-xl active:scale-[0.98]"
               >
                 Close
               </button>
