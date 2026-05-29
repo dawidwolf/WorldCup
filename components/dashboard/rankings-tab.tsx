@@ -380,10 +380,11 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
 
         {isAdmin && (
           <button
+            type="button"
             onClick={() => setShowInvite(true)}
-            className="w-full mt-2 relative items-center px-3 py-3 rounded-2xl bg-muted/30 border border-border/50 text-center font-bold text-muted-foreground text-sm uppercase tracking-widest cursor-pointer hover:bg-muted/50 transition-all active:scale-[0.98]"
+            className="w-full mt-2 relative items-center px-3 py-3 rounded-2xl bg-card hover:bg-muted text-muted-foreground border border-border/60 text-center font-bold text-sm uppercase tracking-widest cursor-pointer transition-all active:scale-[0.98]"
           >
-            Invite players
+            INVITE
           </button>
         )}
       </div>
@@ -398,12 +399,15 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
             <div className="flex items-center gap-2 mt-2 w-full">
               <input
                 readOnly
+                tabIndex={-1}
+                onFocus={(e) => e.currentTarget.blur()}
                 value={getInviteUrl()}
-                className="flex-1 bg-white/5 text-sm text-foreground px-3 py-2 rounded-xl border border-border/30 truncate"
+                className="flex-1 min-w-0 bg-white/5 text-sm text-foreground px-3 py-2 rounded-xl border border-border/30 truncate"
               />
               <button
+                type="button"
                 onClick={copyInvite}
-                className="px-3 py-2 bg-muted/20 text-sm rounded-xl border border-border/30 font-bold text-muted-foreground"
+                className="shrink-0 px-3 py-2 bg-muted/20 text-sm rounded-xl border border-border/30 font-bold text-muted-foreground"
               >
                 Copy
               </button>

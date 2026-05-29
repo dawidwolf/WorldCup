@@ -189,9 +189,13 @@ cant see the scores users predicted when i click on a match tab that finished of
 - 34.
 
 
+Filter buttons should be swipeadble(i mean not the buttons but their content), so user can swipe left to go to todays matches and to other filer buttons. They are on top so when user is on mobile and uses only one hand, they cant reach, so swiping solves this. 
 
 - 35. 
 
 supabase update:
 supabase db pull
 supabase gen types typescript --project-id qlnganxvaiuwsuohjwtp --schema public > lib/database.types.ts
+
+Supabase
+FifaWC#2026

@@ -3,6 +3,7 @@
 import { LogOut, Shield, User, Info, ArrowUp, ArrowDown } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
 
 export interface UserPool {
   pool_id: number
@@ -49,6 +50,8 @@ export function ProfileTab({
   const [localStats, setLocalStats] = useState<{ exactHits: number; hits: number; misses: number } | null>(null)
   const [userPointsLocal, setUserPointsLocal] = useState<number | null>(null)
   const [userRankLocal, setUserRankLocal] = useState<number | null>(null)
+  const [showInvite, setShowInvite] = useState(false)
+  const [invitePoolName, setInvitePoolName] = useState<string>("")
   const poolIdRef = useRef<number | null>(pools[0]?.pool_id ?? null)
 
   useEffect(() => {
@@ -301,6 +304,21 @@ export function ProfileTab({
   const accuracyRaw = totalPredictions > 0 ? ((displayStats.exactHits + displayStats.hits) / totalPredictions) * 100 : 0
   const accuracy = accuracyRaw.toFixed(1)
 
+  const getInviteUrl = (poolName: string) => {
+    if (typeof window === 'undefined') return ''
+    return `${window.location.origin}/?pool=${encodeURIComponent(poolName.trim().toUpperCase())}`
+  }
+
+  const copyInvite = async () => {
+    const url = getInviteUrl(invitePoolName)
+    if (!url) return
+    try {
+      await navigator.clipboard.writeText(url)
+    } catch (err) {
+      console.error('Copy invite failed', err)
+    }
+  }
+
   return (
     <div className="space-y-3">
       {/* Profile Header Card - Compact horizontal layout */}
@@ -382,9 +400,20 @@ export function ProfileTab({
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-sm text-foreground">{pool.pool_name.toUpperCase()}</span>
                       {pool.is_admin && (
-                        <span className="bg-primary/20 text-primary text-[8px] px-1.5 py-0.5 rounded flex items-center gap-1 font-bold uppercase tracking-wider border border-primary/30">
-                          <Shield className="w-2.5 h-2.5" /> Admin
-                        </span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="bg-primary/20 text-primary text-[8px] px-1.5 py-0.5 rounded flex items-center gap-1 font-bold uppercase tracking-wider border border-primary/30">
+                              <Shield className="w-2.5 h-2.5" /> Admin
+                            </span>
+                            <button
+                              onClick={() => {
+                                setInvitePoolName(pool.pool_name)
+                                setShowInvite(true)
+                              }}
+                              className="text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-lg bg-card text-muted-foreground border border-border/60 hover:bg-muted transition-all"
+                            >
+                              Invite
+                            </button>
+                          </div>
                       )}
                     </div>
                     <button
@@ -400,6 +429,55 @@ export function ProfileTab({
               )}
             </div>
           </div>
+
+          <Dialog open={showInvite} onOpenChange={setShowInvite}>
+            <DialogContent className="w-[calc(100%-32px)] max-w-sm h-[56vh] sm:h-auto sm:max-h-[85vh] rounded-2xl bg-card border border-border/40 shadow-2xl p-0 mx-auto overflow-hidden [&>button]:hidden">
+              <div className="flex h-full flex-col">
+                <div className="px-5 pt-5 pb-3 border-b border-border/30">
+                  <h3 className="text-lg font-bold text-foreground">
+                    Invite players to <span className="text-primary">{invitePoolName.toUpperCase()}</span>
+                  </h3>
+                </div>
+
+                <div className="flex flex-1 flex-col gap-4 px-5 py-4 overflow-y-auto">
+                  <div className="flex items-center gap-2 w-full">
+                    <input
+                      readOnly
+                        tabIndex={-1}
+                        onFocus={(e) => e.currentTarget.blur()}
+                      value={getInviteUrl(invitePoolName)}
+                        className="flex-1 min-w-0 bg-white/5 text-sm text-foreground px-3 py-2 rounded-xl border border-border/30 truncate"
+                    />
+                    <button
+                      type="button"
+                      onClick={copyInvite}
+                        className="shrink-0 px-3 py-2 rounded-xl bg-card hover:bg-muted text-muted-foreground text-sm font-bold border border-border/40"
+                    >
+                      Copy
+                    </button>
+                  </div>
+
+                  <div className="flex flex-1 items-center justify-center">
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&color=0-0-0&bgcolor=255-255-255&data=${encodeURIComponent(getInviteUrl(invitePoolName))}`}
+                      alt="Invite QR code"
+                      className="w-[220px] h-[220px] max-w-full rounded-xl bg-white p-2"
+                    />
+                  </div>
+                </div>
+
+                <div className="sticky bottom-0 bg-card/90 backdrop-blur-sm border-t border-border/30 px-5 py-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowInvite(false)}
+                    className="w-full py-3 rounded-xl bg-card hover:bg-muted text-muted-foreground font-semibold transition-all border border-red-500/40"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
 
           {/* Info Card - Global Predictions */}
           {pools.length > 1 && (
