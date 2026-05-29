@@ -243,11 +243,34 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
     return `${window.location.origin}/?pool=${encodeURIComponent(poolName || "")}`
   }
 
+  const copyTextToClipboard = async (text: string) => {
+    if (typeof window === "undefined") return false
+
+    if (navigator?.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text)
+      return true
+    }
+
+    const textarea = document.createElement('textarea')
+    textarea.value = text
+    textarea.setAttribute('readonly', 'true')
+    textarea.style.position = 'fixed'
+    textarea.style.opacity = '0'
+    textarea.style.pointerEvents = 'none'
+    document.body.appendChild(textarea)
+    textarea.focus()
+    textarea.select()
+
+    const copied = document.execCommand('copy')
+    document.body.removeChild(textarea)
+    return copied
+  }
+
   const copyInvite = async () => {
     const url = getInviteUrl()
     if (!url) return
     try {
-      await navigator.clipboard.writeText(url)
+      await copyTextToClipboard(url)
       toast.success("Invite link copied")
     } catch (err) {
       console.error("Copy failed", err)
