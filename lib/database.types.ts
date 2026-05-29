@@ -548,6 +548,25 @@ export type Database = {
           username: string
         }[]
       }
+      create_pool_and_join: {
+        Args: { p_pool_name: string; p_user_id: number }
+        Returns: {
+          pool_id: number
+          pool_name: string
+        }[]
+      }
+      join_pool_by_name: {
+        Args: { p_pool_name: string; p_user_id: number }
+        Returns: {
+          pool_id: number
+          pool_name: string
+        }[]
+      }
+      leave_pool: {
+        Args: { p_pool_id: number; p_user_id: number }
+        Returns: undefined
+      }
+      set_current_user_id: { Args: { uid: number }; Returns: undefined }
       get_bonus_pick_cutoff: { Args: never; Returns: string }
       get_pool_leaderboard: {
         Args: { p_pool_id: number }

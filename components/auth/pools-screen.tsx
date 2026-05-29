@@ -25,14 +25,14 @@ interface PoolsScreenProps {
 export function PoolsScreen({ userId, onJoined, initialPoolName }: PoolsScreenProps) {
   const [loading, setLoading] = useState(false)
   const [poolName, setPoolName] = useState("")
-  const [inviteCode, setInviteCode] = useState("")
+  const [joinPoolName, setJoinPoolName] = useState("")
   const [userPools, setUserPools] = useState<UserPool[]>([])
   const [loadingExisting, setLoadingExisting] = useState(true)
 
   useEffect(() => {
     const prefill = (initialPoolName || "").trim()
     if (prefill) {
-      setInviteCode(prefill)
+      setJoinPoolName(prefill)
     }
   }, [initialPoolName])
 
@@ -73,25 +73,16 @@ export function PoolsScreen({ userId, onJoined, initialPoolName }: PoolsScreenPr
 
     setLoading(true)
     try {
-      // Generate a random 6-char invite code
-      const generatedCode = Math.random().toString(36).substring(2, 8).toUpperCase()
-      
       const { data: pool, error: poolError } = await supabase
-        .from("pools")
-        .insert([{ pool_name: normalizedPoolName, invite_code: generatedCode }])
-        .select()
+        .rpc("create_pool_and_join", {
+          p_user_id: userId,
+          p_pool_name: normalizedPoolName,
+        })
         .single()
 
       if (poolError) throw poolError
 
-      // Join the pool as admin
-      const { error: joinError } = await supabase
-        .from("user_pools")
-        .insert([{ user_id: userId, pool_id: pool.pool_id, is_admin: true }])
-
-      if (joinError) throw joinError
-
-      toast.success(`Pool "${normalizedPoolName}" created! Invite code: ${generatedCode}`)
+      toast.success(`Pool "${pool.pool_name}" created.`)
       onJoined(pool.pool_id)
     } catch (error: any) {
       toast.error(error.message || "Failed to create pool")
@@ -101,7 +92,7 @@ export function PoolsScreen({ userId, onJoined, initialPoolName }: PoolsScreenPr
   }
 
   const handleJoinPool = async () => {
-    const normalizedPoolName = inviteCode.trim()
+    const normalizedPoolName = joinPoolName.trim()
     if (!normalizedPoolName) {
       toast.error("Please enter the pool name")
       return
@@ -109,32 +100,12 @@ export function PoolsScreen({ userId, onJoined, initialPoolName }: PoolsScreenPr
 
     setLoading(true)
     try {
-      const { data: pools, error: fetchError } = await supabase
-        .from("pools")
-        .select("pool_id, pool_name")
-        .ilike("pool_name", normalizedPoolName)
-        .limit(2)
-
-      if (fetchError) {
-        toast.error("Failed to find pool")
-        return
-      }
-
-      if (!pools || pools.length === 0) {
-        toast.error("Pool not found")
-        return
-      }
-
-      if (pools.length > 1) {
-        toast.error("Multiple pools match this name. Please use the exact name.")
-        return
-      }
-
-      const pool = pools[0]
-
-      const { error: joinError } = await supabase
-        .from("user_pools")
-        .insert([{ user_id: userId, pool_id: pool.pool_id, is_admin: false }])
+      const { data: pool, error: joinError } = await supabase
+        .rpc("join_pool_by_name", {
+          p_user_id: userId,
+          p_pool_name: normalizedPoolName,
+        })
+        .single()
 
       if (joinError) {
         if (joinError.code === "23505") {
@@ -175,8 +146,8 @@ export function PoolsScreen({ userId, onJoined, initialPoolName }: PoolsScreenPr
                     <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest ml-1">Pool Name</label>
                     <Input 
                       placeholder="e.g. SoccerLads" 
-                      value={inviteCode}
-                      onChange={(e) => setInviteCode(e.target.value)}
+                      value={joinPoolName}
+                      onChange={(e) => setJoinPoolName(e.target.value)}
                       className="bg-secondary/50 border-primary/20 h-12 rounded-xl text-center text-base placeholder:text-muted-foreground/30"
                     />
                   </div>

@@ -133,11 +133,10 @@ The Profile tab serves as the user's personal dashboard and management center. I
 
 7. **Logout Button:** A prominent red button at the bottom to end the session.
 
-### 2.6 Admin Page (Hidden Management Dashboard)
-- **Access Route:** The overall admin has a unique username and password. if the admin logs in with that, he sees the same as normal users, but in the profile tab there is an extra button saying Admin which leads to an admin page. Admin username is: "Admin01" password will be added later. 
-- **Admin Capabilities:** Manually edit match final scores, delete pools, kick out users from any pool. 
- - **Admin Capabilities:** Manually edit match final scores, delete pools, kick out users from any pool. 
- - **Current Implementation Note:** The UI does not yet provide a full Admin dashboard component. There is no `Admin` button in the profile screen in the current codebase; admin-only flows remain to be added.
+### 2.6 Admin Page (Hidden Management Dashboard) - NOT YET IMPLEMENTED
+- **Planned Access Route:** The overall admin has a unique username (Admin01) and will eventually see an "Admin" button in their Profile leading to a management page. 
+- **Planned Admin Capabilities:** Manually edit match final scores, delete pools, kick out users from any pool.
+- **Current Implementation Note:** The UI does not yet provide a full Admin dashboard component. There is no `Admin` button in the profile screen in the current codebase; admin-only flows remain to be added in a future release.
 
 ---
 
@@ -168,8 +167,9 @@ Pools are created by users who want to play with a friend group. They give the p
 
 Important: predictions are tied to the global `users` identity (one prediction per user per match). This means a user who is a member of multiple pools will submit a single prediction for a given match and that prediction will count for every pool they belong to — preventing duplicate or conflicting votes across pools.
 
-### 4.1 LocalStorage Key Structure
+### 4.1 LocalStorage Key Structure & Session Management
 - **Session Identification:** User logs in once and their session is persisted. The browser remembers them so they stay logged in across sessions.
+- **Session Setup & RLS:** After successful authentication (login or signup), the `setCurrentUserSession(userId)` RPC is called. This function executes `set_current_user_id` SECURITY DEFINER RPC which stores the user ID in a Postgres session variable (`app.current_user_id`). This variable is required by RLS policies to determine row access. Without this setup step at auth time, subsequent HTTP requests would fail RLS checks.
 - **App Guard / Routing Flow Logic:** 
   1. If no session: Force the Login/Sign-up screen.
   2. If session exists but no pool is selected: Force the Pools screen (Join/Create/Select).
@@ -182,6 +182,15 @@ Important: predictions are tied to the global `users` identity (one prediction p
   2. System checks if name exists in the database.
   3. System verifies that the user is not already in the pool.
   4. If clean, add user to pool and unlock dashboard visualization immediately.
+
+### 4.3 Pool Leaving Mechanics
+- **Step-by-step leaving flow:**
+  1. User clicks "Leave" on a pool in the Profile tab.
+  2. System confirms they are not the only admin (admins must promote another or delete pool).
+  3. RPC `leave_pool` is called with SECURITY DEFINER to execute the delete as trusted function, bypassing RLS.
+  4. User is removed from the pool immediately via optimistic UI update.
+  5. If the user was viewing that pool, the app automatically switches to the next available pool or returns to pools screen.
+  6. Toast confirms "Left pool 'XYZ'".
 
 UX note for multi-pool users:
 - Predictions are global across pools: if a user is a member of multiple pools they submit one global prediction per match and it counts for every pool they belong to. To avoid confusion, display a small informational card in the `Profile` tab (above the rules card) that states: "Your match predictions are global and apply to every pool you belong to — you only need to predict once." Also add a "Pools" card in the Profile where users can see their pools and a "Leave" button for each pool.
@@ -252,8 +261,8 @@ point evaluations based on predictions vs actual scores. After every match, poin
 - **Tournament Winner Pick:** +10 Points (Correctly picked the overall champion before kickoff)
 - **Top Scorer Pick:** +10 Points (Correctly picked the golden boot winner before kickoff)
 
--- Implementation note: we added a transactional scoring engine (`public.process_match_scoring(match_id)`) and an `AFTER UPDATE` trigger `trg_match_finished` that runs when a match transitions to `is_finished = true`. The processor writes idempotent ledger rows into `user_points_events` and updates `users` aggregates atomically.
--- Implementation note: we added a transactional scoring engine (`public.process_match_scoring(match_id)`) and an `AFTER UPDATE` trigger `trg_match_finished` that runs when a match transitions to `is_finished = true`. The processor writes idempotent ledger rows into `user_points_events` and updates `users` aggregates atomically. The client helper `lib/db-actions.ts` calls an RPC `process_match_conclusion` which wraps the scoring RPC; ensure the corresponding RPCs are deployed in the Supabase project for the UI to finalize matches successfully.
+- Current implementation note: the production scoring path is `public.process_match_conclusion(p_match_id bigint, p_source text DEFAULT 'API-Sync')` with the `trg_on_match_finalized` trigger on `public.matches`. It writes exact/outcome/miss ledger rows, refreshes `users.points_total`, `exact_hits`, `hits_total`, and `misses_total` from the ledger, and rebuilds group standings from finished group-stage matches.
+- The earlier one-argument `process_match_scoring(match_id)` flow is legacy; the database now uses the ledger-first `process_match_conclusion` pipeline as the authoritative scoring engine.
 
 ### 7.2 Penalty System (The Second Chance)
 If a user misses the pre-tournament deadline for Winner/Scorer:
@@ -415,31 +424,31 @@ This section lists the exact production tables as they exist in Supabase. All pr
 - [x] **Checkpoint 2: Supabase Connectivity.** Environment variables configured in `.env.local` and `supabase-js` client initialized in `lib/supabase.ts`.
 - [x] **Checkpoint 3: Realtime Enabled.** `supabase_realtime` publication created and tracking core tables for live UI updates.
 - [x] **Checkpoint 4: Authentication Flow.** Implementation of the Login/Register/Pool joining logic (PWA-friendly) with 4-digit Passcode.
-- [x] **Checkpoint 6: Scoring & Leaderboards.** Automated point calculation logic implemented in the Rankings tab, including tie-breaking by exact hits.
- - [x] **Checkpoint 5: Match Prediction Logic.** Components for score input with deadline guards and color-coded status badges. (UI-level guards implemented; also now backed by DB trigger enforcement.)
- - [x] **Checkpoint 6: Scoring & Leaderboards.** Automated point calculation logic implemented in the Rankings tab, including tie-breaking by exact hits. (Server-side scoring function and trigger added.)
- - [x] **Checkpoint 7: Pool-Filtered Predictions Modal.** Implemented logic to view friends' predictions for a specific match, filtered by the active pool, with visual point badges for finished matches.
+- [x] **Checkpoint 5: Match Prediction Logic.** Components for score input with deadline guards and color-coded status badges. (UI-level guards implemented; also now backed by DB trigger enforcement.)
+- [x] **Checkpoint 6: Scoring & Leaderboards.** Automated point calculation logic is now live in the database via `public.process_match_conclusion` and the `trg_on_match_finalized` trigger. It updates the ledger, user aggregates, and group standings after finalized matches.
+- [x] **Checkpoint 7: Pool-Filtered Predictions Modal.** Implemented logic to view friends' predictions for a specific match, filtered by the active pool, with visual point badges for finished matches.
 - [x] **Checkpoint 8: PWA Setup.** Service workers, manifest, install metadata, and mobile app icons are configured for home screen installation.
 - [x] **Schema & Connectivity:** Tables and `lib/supabase.ts` are present and used by the app.
-- [x] **Matches UI & Logic:** `match-card` and `matches-tab` render cards, show flags and 3-letter abbreviations, support prediction upserts, show status badges, and implement scroll-to-today/next behavior. Deadline guards exist in UI and `onPredictionChange` checks kickoff times via `getAppTime()` in key places. Match and group cards now subscribe to realtime `matches` and `standings` updates, and the predictions modal refetches on realtime `predictions` changes for the active match.
+- [x] **Matches UI & Logic:** `match-card` and `matches-tab` render cards, show flags and 3-letter abbreviations, support prediction upserts, show status badges, and implement scroll-to-today/next behavior. Deadline guards exist in UI and `onPredictionChange` checks kickoff times via `getAppTime()` in key places. Match and group cards subscribe to realtime `matches` and `standings` updates, and the predictions modal refetches on realtime `predictions` changes for the active match.
 - [x] **Bonus (Players) Tab:** Implemented as `components/dashboard/bonus-tab.tsx` with `hooks/use-bonus.ts` providing data fetch, `saveWinner`/`saveScorer`, lock logic and golden boot fallback.
 - [x] **Profile Tab:** Picks (Winner/Scorer) display and are clickable; clicking navigates to Bonus via `onNavigateToBonus` wired from `app/page.tsx`.
-- [x] **Abbreviations & Flags:** Match/team abbreviations are derived from `teams` table when available and displayed; flags use `lib/flags.getFlag()` or team `team_flag` fields.
- - [x] **Abbreviations & Flags:** Match/team abbreviations are derived from `teams` table when available and displayed; flags use `lib/flags.getFlag()` or team `team_flag` fields. `getFlag` usage has been standardized to accept a single prioritized input (`team_flag` or `abbreviation`).
- - [x] **Input UX Improvements:** Score inputs now select existing values on focus, support deletion (clearing both inputs deletes prediction), include mobile keyboard optimizations (`enterKeyHint`, blur on Enter), and debounce/flush saving logic.
- - [x] **Date Separators & Group UI:** Added plain date separators between different days in the Matches list and added rank numbers (1–4) to teams on Group cards.
- - [ ] **Full getAppTime() Migration:** `getAppTime()` is used in several components, but not yet universally. Remaining uses of `new Date()` should be migrated.
+- [x] **Abbreviations & Flags:** Match/team abbreviations are derived from `teams` table when available and displayed; flags use `lib/flags.getFlag()` or team `team_flag` fields. `getFlag` usage has been standardized to accept a single prioritized input (`team_flag` or `abbreviation`).
+- [x] **Input UX Improvements:** Score inputs now select existing values on focus, support deletion (clearing both inputs deletes prediction), include mobile keyboard optimizations (`enterKeyHint`, blur on Enter), and debounce/flush saving logic.
+- [x] **Date Separators & Group UI:** Added plain date separators between different days in the Matches list and added rank numbers (1–4) to teams on Group cards.
+- [ ] **Full getAppTime() Migration:** `getAppTime()` is used in several components, but not yet universally. Remaining uses of `new Date()` should be migrated.
 - [x] **Realtime Subscriptions:** Runtime subscriptions are implemented for Rankings, Profile stats, Matches, Standings, and the predictions modal. The app subscribes to `users`, `user_points_events`, `matches`, `standings`, `predictions`, and `player_stats` updates for live UI refreshes.
- - [x] **DB-level deadline enforcement:** Implemented via `public.enforce_prediction_deadline()` trigger on `public.predictions`. This prevents late writes regardless of client behavior.
- - [x] **Friend Predictions Visibility:** Implemented `MatchPredictionsModal` with pool-specific filtering and automated point-based badges (Green/Blue/Gray) for finished matches.
- - [x] **Robust Deletion Logic:** Scores can now be cleared independently; clearing BOTH inputs triggers a database DELETE, while clearing one defaults safely to 0 to satisfy schema constraints while keeping the UI clean.
- - [x] **Missing Data Fallbacks:** Added "No prediction submitted" indicators for finished matches with missing data, ensuring the app remains bulletproof against late joins or missed entries.
+- [x] **DB-level deadline enforcement:** Implemented via `public.enforce_prediction_deadline()` trigger on `public.predictions`. This prevents late writes regardless of client behavior.
+- [x] **Friend Predictions Visibility:** Implemented `MatchPredictionsModal` with pool-specific filtering and automated point-based badges (Green/Blue/Gray) for finished matches.
+- [x] **Robust Deletion Logic:** Scores can now be cleared independently; clearing BOTH inputs triggers a database DELETE, while clearing one defaults safely to 0 to satisfy schema constraints while keeping the UI clean.
+- [x] **Missing Data Fallbacks:** Added "No prediction submitted" indicators for finished matches with missing data, ensuring the app remains bulletproof against late joins or missed entries.
 - [x] **Live/Finished Footer Line:** Match cards now show an inline footer on live and finished matches with the exact tap hint next to the prediction text, keeping the hint visible even when no prediction exists.
-
- - [x] **Auth Sanitization & Robustness:** Login/register now trims and case-normalizes usernames; ambiguous matches are rejected with clear errors.
- - [x] **Demo Removal:** The `MatchPredictionsModal` no longer injects demo rows; empty results show a centered CTA.
- - [ ] **Admin Dashboard:** Not implemented in the UI; admin flows remain to be added.
- - [x] **Invite Link Auto-Fill:** Invite link parsing (`?pool=`) now pre-fills the Pools screen and auto-joins the invited pool after login/signup.
+- [x] **Auth Sanitization & Robustness:** Login/register now trims and case-normalizes usernames; ambiguous matches are rejected with clear errors.
+- [x] **Demo Removal:** The `MatchPredictionsModal` no longer injects demo rows; empty results show a centered CTA.
+- [x] **Invite Link Auto-Fill & Sharing:** Invite link parsing (`?pool=`) now pre-fills the Pools screen and auto-joins the invited pool after login/signup. Admin "Invite players" button in Rankings tab generates shareable link and QR code via qrserver API.
+- [x] **Pool Leaving with Admin Check:** `leave_pool` SECURITY DEFINER RPC prevents RLS issues on deletion. Admin check blocks leaving if user is the only admin and other members exist. Optimistic UI update immediately removes pool from list and switches to next available pool.
+- [x] **Session Setup at Auth Entry Points:** `setCurrentUserSession(userId)` RPC is called at successful login/signup (in auth-screen.tsx) and after checkAuth() restores session from localStorage (in app/page.tsx). Sets Postgres session variable (`app.current_user_id`) for RLS policies to work correctly.
+- [x] **Scoring Engine Deployment:** The database scoring engine is now deployed as a trigger-driven ledger-first pipeline, and the standings rebuild path is aligned with finished group-stage matches.
+- [ ] **Admin Dashboard:** Not implemented. Special admin account (Admin01) with hidden dashboard for editing match scores, deleting pools, and kicking users remains to be added.
 
 ### 10.1 Technical environment
 - **Framework:** Next.js (React)

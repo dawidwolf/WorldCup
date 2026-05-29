@@ -180,11 +180,11 @@ even if i have the top scorer selected predicted before tournament, if i go to m
 
 - 32. 
 
-
+Add a back button for where its needed. first place is the pool page, user should be able to go back to auth. They can get stuck now. 
 
 - 33. 
  
-
+cant see the scores users predicted when i click on a match tab that finished of is live. it should display the scores(home:away) every user predicted. 
 
 - 34.
 

@@ -90,6 +90,16 @@ export function MatchesTab({ currentUserId, activeFilter, onFilterChange, active
           const newRow = payload.new as any
           const oldRow = payload.old as any
 
+          const justFinished =
+            payload.eventType === 'UPDATE' &&
+            newRow?.is_finished === true &&
+            oldRow?.is_finished !== true
+
+          if (justFinished) {
+            void fetchData()
+            return
+          }
+
           setMatches((prev) => {
             if (payload.eventType === 'DELETE') {
               return prev.filter((match) => String(match.match_id) !== String(oldRow?.match_id))

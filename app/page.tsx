@@ -28,37 +28,36 @@ export default function Home() {
     setInvitePoolName((params.get("pool") || "").trim())
   }, [])
 
+  const setCurrentUserSession = async (userId: number) => {
+    const { error } = await supabase.rpc("set_current_user_id", { uid: userId })
+    if (error) throw error
+  }
+
   const joinInvitePool = async (userId: number, poolName: string) => {
     const normalizedPoolName = poolName.trim()
     if (!normalizedPoolName) return null
 
-    const { data: pools, error: fetchError } = await supabase
-      .from("pools")
-      .select("pool_id, pool_name")
-      .ilike("pool_name", normalizedPoolName)
-      .limit(2)
+    const { data: pool, error: joinError } = await supabase
+      .rpc("join_pool_by_name", {
+        p_user_id: userId,
+        p_pool_name: normalizedPoolName,
+      })
+      .single()
 
-    if (fetchError) throw fetchError
-    if (!pools || pools.length === 0) throw new Error("Pool not found")
-    if (pools.length > 1) throw new Error("Multiple pools match this invite link. Please use the exact pool name.")
+    if (joinError) {
+      if (joinError.code === "23505") {
+        const { data: existingPool, error: fetchError } = await supabase
+          .from("pools")
+          .select("pool_id, pool_name")
+          .ilike("pool_name", normalizedPoolName)
+          .limit(1)
+          .single()
 
-    const pool = pools[0]
+        if (fetchError) throw fetchError
+        return existingPool
+      }
 
-    const { data: membership, error: membershipError } = await supabase
-      .from("user_pools")
-      .select("pool_id")
-      .eq("user_id", userId)
-      .eq("pool_id", pool.pool_id)
-      .limit(1)
-
-    if (membershipError) throw membershipError
-
-    if (!membership || membership.length === 0) {
-      const { error: joinError } = await supabase
-        .from("user_pools")
-        .insert([{ user_id: userId, pool_id: pool.pool_id, is_admin: false }])
-
-      if (joinError && joinError.code !== "23505") throw joinError
+      throw joinError
     }
 
     return pool
@@ -78,6 +77,7 @@ export default function Home() {
 
           if (dbUser && !error) {
             setUser(dbUser)
+            await setCurrentUserSession(dbUser.user_id)
             if (invitePoolName) {
               try {
                 const invitedPool = await joinInvitePool(dbUser.user_id, invitePoolName)
@@ -117,9 +117,11 @@ export default function Home() {
 
   const handleAuthSuccess = async (newUser: { user_id: number; username: string }) => {
     localStorage.setItem("wc2026_user", JSON.stringify(newUser))
-    setUser(newUser)
     setLoading(true)
     try {
+      setUser(newUser)
+      await setCurrentUserSession(newUser.user_id)
+
       if (invitePoolName) {
         const invitedPool = await joinInvitePool(newUser.user_id, invitePoolName)
         if (invitedPool) {
@@ -168,10 +170,10 @@ export default function Home() {
   // pool we auto-select it and show the Dashboard instead.
   if (!hasSelectedPool) return <PoolsScreen userId={user.user_id} onJoined={handlePoolJoined} initialPoolName={invitePoolName} />
 
-  return <Dashboard user={user} onLogout={handleLogout} onPoolsChanged={setHasPool} onNavigateToPools={() => { setSelectedPoolId(null); setHasSelectedPool(false) }} activePoolId={selectedPoolId} />
+  return <Dashboard user={user} onLogout={handleLogout} onPoolsChanged={setHasPool} onActivePoolChange={setSelectedPoolId} onNavigateToPools={() => { setSelectedPoolId(null); setHasSelectedPool(false) }} activePoolId={selectedPoolId} />
 }
 
-function Dashboard({ user, onLogout, onPoolsChanged, onNavigateToPools, activePoolId }: { user: { user_id: number, username: string }, onLogout: () => void, onPoolsChanged: (hasPool: boolean) => void, onNavigateToPools: () => void, activePoolId: number | null }) {
+function Dashboard({ user, onLogout, onPoolsChanged, onActivePoolChange, onNavigateToPools, activePoolId }: { user: { user_id: number, username: string }, onLogout: () => void, onPoolsChanged: (hasPool: boolean) => void, onActivePoolChange: (poolId: number | null) => void, onNavigateToPools: () => void, activePoolId: number | null }) {
   const [activeFilter, setActiveFilter] = useState("all")
   const [activeTab, setActiveTab] = useState("matches")
   const [predictions, setPredictions] = useState<Record<string, { home: number | null; away: number | null }>>({})
@@ -274,17 +276,25 @@ function Dashboard({ user, onLogout, onPoolsChanged, onNavigateToPools, activePo
 
     try {
       const { error } = await supabase
-        .from("user_pools")
-        .delete()
-        .eq("user_id", user.user_id)
-        .eq("pool_id", poolId)
+        .rpc("leave_pool", {
+          p_user_id: user.user_id,
+          p_pool_id: poolId,
+        })
 
       if (error) throw error
 
+      const remainingPools = pools.filter((item) => item.pool_id !== poolId)
+      setPools(remainingPools)
+      onPoolsChanged(remainingPools.length > 0)
+
       toast.success(`Left pool "${pool?.pool_name}"`)
-      fetchPools()
-      if (activePoolId === poolId || pools.length <= 1) {
-        onNavigateToPools()
+
+      if (activePoolId === poolId) {
+        if (remainingPools.length > 0) {
+          onActivePoolChange(remainingPools[0].pool_id)
+        } else {
+          onNavigateToPools()
+        }
       }
     } catch (error: any) {
       toast.error("Failed to leave pool")
@@ -301,6 +311,7 @@ function Dashboard({ user, onLogout, onPoolsChanged, onNavigateToPools, activePo
         <div className="pt-20 px-4">
           <ProfileTab 
             username={user.username} 
+            currentUserId={user.user_id}
             rank={1} 
             userPoints={0} 
             onLogout={onLogout} 

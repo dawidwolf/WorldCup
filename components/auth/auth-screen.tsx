@@ -11,6 +11,11 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp
 import { toast } from "sonner"
 import { Spinner } from "@/components/ui/spinner"
 
+async function setCurrentUserSession(userId: number) {
+  const { error } = await supabase.rpc("set_current_user_id", { uid: userId })
+  if (error) throw error
+}
+
 interface AuthScreenProps {
   onSuccess: (user: { user_id: number; username: string }) => void
 }
@@ -41,8 +46,13 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
 
       if (error) throw error
 
+      if (!data || data.length === 0) {
+        throw new Error("No user returned from signup")
+      }
+
+      await setCurrentUserSession(data[0].user_id)
       toast.success("Account created!")
-      onSuccess({ user_id: data.user_id, username: data.username })
+      onSuccess({ user_id: data[0].user_id, username: data[0].username })
     } catch (err) {
       const e = err as PostgrestError & { message?: string }
 
@@ -98,10 +108,15 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
         return
       }
       const matched = data[0]
+
+      await setCurrentUserSession(matched.user_id)
       toast.success("Welcome back!")
       onSuccess({ user_id: matched.user_id, username: matched.username })
     } catch (error: any) {
-      toast.error("Login failed")
+      console.error("Login error:", error)
+      toast.error("Login failed", {
+        description: error?.message || "Please try again.",
+      })
     } finally {
       setLoading(false)
     }
