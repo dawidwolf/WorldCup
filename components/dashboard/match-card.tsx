@@ -207,7 +207,7 @@ export function MatchCard({
       aria-disabled={!(isLiveByStatus || isFinishedByStatus)}
       className={cn(
         "bg-card rounded-2xl p-4 shadow-lg shadow-black/20 border border-border/50 transition-all",
-        (isLiveByStatus || isFinishedByStatus) ? "cursor-pointer" : "cursor-not-allowed opacity-95",
+        (isLiveByStatus || isFinishedByStatus) ? "cursor-pointer" : "opacity-95",
         isFinishedByStatus && "opacity-60"
       )}
     >

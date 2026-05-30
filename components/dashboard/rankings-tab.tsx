@@ -81,7 +81,7 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
                     .select("team_flag, abbreviation, team_name")
                     .eq("team_id", newRec.predicted_tournament_winner_id)
                     .single()
-                  newFlag = getFlag(team?.team_flag || team?.abbreviation) || "🏳️"
+                  newFlag = getFlag(team?.team_flag ?? team?.abbreviation ?? undefined) || "🏳️"
                   newCode = team?.abbreviation || ""
                 } catch (e) {
                   newFlag = "🏳️"
@@ -124,6 +124,12 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
   }, [poolId])
 
   const fetchRankings = async () => {
+    if (!poolId) {
+      setUsers([])
+      setLoading(false)
+      return
+    }
+
     setLoading(true)
     try {
       const { data, error } = await supabase

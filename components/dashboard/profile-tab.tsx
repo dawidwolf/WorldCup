@@ -536,7 +536,7 @@ export function ProfileTab({
             <div className="mt-3 pt-3 border-t border-border/50">
               <h4 className="text-sm font-semibold text-foreground mb-1">Deadlines</h4>
               <p className="text-muted-foreground text-sm">
-                Match predictions lock 30 minutes before kickoff. Tournament winner and top scorer predictions must be submitted before the first match.
+                Match predictions lock exactly at kickoff. Tournament winner and top scorer predictions must be submitted before the first match.
               </p>
             </div>
           </div>
