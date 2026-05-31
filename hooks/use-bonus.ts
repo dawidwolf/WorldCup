@@ -16,6 +16,20 @@ export type DBPlayer = {
   goals: number;
 }
 
+const normalizeTeam = (team: any): DBTeam => ({
+  team_id: Number(team.team_id ?? 0),
+  team_name: String(team.team_name ?? ""),
+  abbreviation: String(team.abbreviation ?? ""),
+  team_flag: String(team.team_flag ?? ""),
+})
+
+const normalizePlayer = (player: any): DBPlayer => ({
+  player_id: Number(player.player_id ?? 0),
+  player_name: String(player.player_name ?? ""),
+  team_id: Number(player.team_id ?? 0),
+  goals: Number(player.goals ?? 0),
+})
+
 export function useBonus(userId: number | null) {
   const [teams, setTeams] = useState<DBTeam[]>([])
   const [players, setPlayers] = useState<DBPlayer[]>([])
@@ -48,6 +62,7 @@ export function useBonus(userId: number | null) {
 
   useEffect(() => {
     if (!userId) return
+    const currentUserId = userId
 
     async function loadData() {
       setLoading(true)
@@ -55,7 +70,7 @@ export function useBonus(userId: number | null) {
       const [teamsRes, playersRes, userRes, deadlineRes] = await Promise.all([
         supabase.from('teams').select('*').order('team_name'),
         supabase.from('player_stats').select('*').order('player_name'),
-        supabase.from('users').select('predicted_tournament_winner_id, predicted_top_scorer_id').eq('user_id', userId).single(),
+        supabase.from('users').select('predicted_tournament_winner_id, predicted_top_scorer_id').eq('user_id', currentUserId).single(),
         supabase
           .from('matches')
           .select('kickoff_utc, is_finished, round, group_turn')
@@ -63,21 +78,18 @@ export function useBonus(userId: number | null) {
       ])
 
       if (!teamsRes.error && teamsRes.data) {
-        setTeams(teamsRes.data)
+        setTeams(teamsRes.data.map(normalizeTeam))
       }
       if (!playersRes.error && playersRes.data) {
-        setPlayers(playersRes.data)
-        // Build golden boot leaders. If there are recorded goals, sort by goals.
-        // Otherwise, fall back to first 10 players by player_id with 0 goals shown.
-        // Always produce a stable top-10 list.
-        // Sort by goals DESC then player_id ASC to ensure deterministic ordering for ties.
-        const leaders = [...playersRes.data]
-          .map((p) => ({ ...p, goals: p.goals ?? 0 }))
+        const normalizedPlayers = playersRes.data.map(normalizePlayer)
+        setPlayers(normalizedPlayers)
+        // Build golden boot leaders sorted by goals DESC then player_id ASC.
+        // Keep the full list so the UI can scroll through every player.
+        const leaders = [...normalizedPlayers]
           .sort((a, b) => {
-            if ((b.goals ?? 0) !== (a.goals ?? 0)) return (b.goals ?? 0) - (a.goals ?? 0)
-            return (a.player_id ?? 0) - (b.player_id ?? 0)
+            if (b.goals !== a.goals) return b.goals - a.goals
+            return a.player_id - b.player_id
           })
-          .slice(0, 10)
         setGoldenBootLeaders(leaders)
       }
       if (!userRes.error && userRes.data) {
@@ -125,27 +137,33 @@ export function useBonus(userId: number | null) {
               if (exists) {
                 updated = prev.map((p) =>
                   p.player_id === n.player_id
-                    ? { ...p, goals: n.goals ?? 0, player_name: n.player_name ?? p.player_name, team_id: n.team_id ?? p.team_id }
+                    ? {
+                        ...p,
+                        goals: Number(n.goals ?? 0),
+                        player_name: String(n.player_name ?? p.player_name),
+                        team_id: Number(n.team_id ?? p.team_id),
+                      }
                     : p
                 )
               } else {
                 // new player row introduced
-                updated = [...prev, { player_id: n.player_id, player_name: n.player_name ?? 'Unknown', team_id: n.team_id ?? 0, goals: n.goals ?? 0 }]
+                updated = [
+                  ...prev,
+                  {
+                    player_id: Number(n.player_id),
+                    player_name: String(n.player_name ?? 'Unknown'),
+                    team_id: Number(n.team_id ?? 0),
+                    goals: Number(n.goals ?? 0),
+                  },
+                ]
               }
 
-              // Recompute leaders using Golden Boot tie-breaker: goals DESC, then player_name ASC
+              // Recompute leaders using Golden Boot tie-breaker: goals DESC, then player_id ASC
               const leaders = [...updated]
-                .map((p) => ({ ...p, goals: p.goals ?? 0 }))
                 .sort((a, b) => {
-                  if ((b.goals ?? 0) !== (a.goals ?? 0)) return (b.goals ?? 0) - (a.goals ?? 0)
-                  // fallback to alphabetical by player_name
-                  const na = (a.player_name || '').toString()
-                  const nb = (b.player_name || '').toString()
-                  const cmp = na.localeCompare(nb)
-                  if (cmp !== 0) return cmp
-                  return (a.player_id ?? 0) - (b.player_id ?? 0)
+                  if (b.goals !== a.goals) return b.goals - a.goals
+                  return a.player_id - b.player_id
                 })
-                .slice(0, 10)
 
               // update leaders immediately
               setGoldenBootLeaders(leaders)
@@ -193,8 +211,8 @@ export function useBonus(userId: number | null) {
     const { error } = await supabase.rpc('save_bonus_pick', {
       p_user_id: userId,
       p_pick_type: 'winner',
-      p_team_id: teamId,
-      p_player_id: null,
+      p_team_id: teamId ?? undefined,
+      p_player_id: undefined,
     })
     if (!error) setSavedWinnerId(teamId)
     return { error }
@@ -205,8 +223,8 @@ export function useBonus(userId: number | null) {
     const { error } = await supabase.rpc('save_bonus_pick', {
       p_user_id: userId,
       p_pick_type: 'scorer',
-      p_team_id: null,
-      p_player_id: playerId,
+      p_team_id: undefined,
+      p_player_id: playerId ?? undefined,
     })
     if (!error) setSavedScorerId(playerId)
     return { error }

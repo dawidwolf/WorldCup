@@ -5,6 +5,7 @@ import MatchPredictionsModal from '@/components/match-predictions-modal'
 import { cn } from "@/lib/utils"
 import { Check } from "lucide-react"
 import { Spinner } from "@/components/ui/spinner"
+import { useHistoryLayer } from "@/hooks/use-history-layer"
 
 interface Team {
   code: string
@@ -65,6 +66,12 @@ export function MatchCard({
 
   const homeInputRef = useRef<HTMLInputElement | null>(null)
   const awayInputRef = useRef<HTMLInputElement | null>(null)
+
+  const { closeWithHistory: closeModal } = useHistoryLayer({
+    layerId: `match-modal-${id}`,
+    isOpen: isModalOpen,
+    onClose: () => setIsModalOpen(false),
+  })
 
   const normalizedStatus = (status ?? "").trim().toUpperCase()
   const isPostponed = normalizedStatus === "PST"
@@ -338,7 +345,14 @@ export function MatchCard({
           </div>
         </div>
       )}
-      <MatchPredictionsModal matchId={Number(id)} isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} activePoolId={activePoolId} currentUserId={currentUserId} isLive={isLive} />
+      <MatchPredictionsModal
+        matchId={Number(id)}
+        isOpen={isModalOpen}
+        onClose={closeModal}
+        activePoolId={activePoolId}
+        currentUserId={currentUserId}
+        isLive={isLive}
+      />
     </div>
   )
 }

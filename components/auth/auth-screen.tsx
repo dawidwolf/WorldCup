@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import type { PostgrestError } from "@supabase/supabase-js"
 import { supabase } from "@/lib/supabase"
 import { Card, CardContent } from "@/components/ui/card"
@@ -23,9 +23,20 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
   const [loading, setLoading] = useState(false)
   const [username, setUsername] = useState("")
   const [pin, setPin] = useState("")
+  const pinInputRef = useRef<HTMLInputElement | null>(null)
 
   const handleUsernameChange = (value: string) => {
     setUsername(value.toUpperCase())
+  }
+
+  const handlePinChange = (value: string, onComplete: () => void) => {
+    const nextPin = value.replace(/\D/g, "").slice(0, 4)
+    setPin(nextPin)
+
+    if (nextPin.length === 4) {
+      pinInputRef.current?.blur()
+      onComplete()
+    }
   }
 
   const handleRegister = async () => {
@@ -36,7 +47,6 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
       return
     }
     if (cleanPin.length !== 4) {
-      toast.error("PIN must be 4 digits")
       return
     }
 
@@ -54,7 +64,6 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
       }
 
       await setCurrentUserSession(data[0].user_id)
-      toast.success("Account created!")
       onSuccess({ user_id: data[0].user_id, username: String(data[0].username || "").toUpperCase() })
     } catch (err) {
       const e = err as PostgrestError & { message?: string }
@@ -83,7 +92,6 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
     const cleanUsername = username.trim().toUpperCase()
     const cleanPin = pin.trim()
     if (!cleanUsername || cleanPin.length !== 4) {
-      toast.error("Please enter username and 4-digit PIN")
       return
     }
 
@@ -113,7 +121,6 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
       const matched = data[0]
 
       await setCurrentUserSession(matched.user_id)
-      toast.success("Welcome back!")
       onSuccess({ user_id: matched.user_id, username: matched.username })
     } catch (error: any) {
       console.error("Login error:", error)
@@ -125,8 +132,18 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
     }
   }
 
+  const handleLoginSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    await handleLogin()
+  }
+
+  const handleRegisterSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    await handleRegister()
+  }
+
   return (
-    <div className="flex flex-col items-center justify-center min-h-[80vh] px-4">
+    <div className="flex flex-col items-center justify-center min-h-[70vh] px-4">
       <div className="w-full max-w-md space-y-6">
         <div className="text-center space-y-2">
           <h1 className="text-3xl font-bold tracking-tighter text-primary">World Cup Predictor</h1>
@@ -142,80 +159,96 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
           <div className="min-h-[260px]">
             <TabsContent value="login" className="mt-4 focus-visible:outline-none">
               <Card className="border-border/40 shadow-xl shadow-black/20 bg-card/80 backdrop-blur-sm rounded-3xl overflow-hidden">
-                <CardContent className="space-y-3.5 pt-1 pb-5 px-6">
-                  <div className="space-y-1.5">
-                    <label className="text-sm font-bold text-muted-foreground uppercase tracking-widest ml-1">Username</label>
-                    <Input 
-                      placeholder="M JACKSON" 
-                      value={username}
-                      onChange={(e) => handleUsernameChange(e.target.value)}
+                <CardContent className="pt-1 pb-5 px-6">
+                  <form className="space-y-3.5" onSubmit={handleLoginSubmit}>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-bold text-muted-foreground uppercase tracking-widest ml-1">Username</label>
+                      <Input 
+                        placeholder="M JACKSON" 
+                        value={username}
+                        onChange={(e) => handleUsernameChange(e.target.value)}
+                        disabled={loading}
+                        className="bg-secondary/50 border-primary/20 h-12 rounded-xl text-center text-base placeholder:text-muted-foreground/30"
+                      />
+                    </div>
+                    <div className="space-y-1.5 flex flex-col items-center">
+                      <label className="text-sm font-bold text-muted-foreground uppercase tracking-widest ml-1 self-start">Passcode (4 digits)</label>
+                      <Input 
+                        ref={pinInputRef}
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        autoComplete="off"
+                        autoCorrect="off"
+                        autoCapitalize="none"
+                        spellCheck={false}
+                        data-lpignore="true"
+                        data-autofill="false"
+                        maxLength={4}
+                        placeholder="1234" 
+                        value={pin}
+                        onChange={(e) => handlePinChange(e.target.value, handleLogin)}
+                        disabled={loading}
+                        className="bg-secondary/50 border-primary/20 h-12 rounded-xl text-center text-base tracking-[0.5em] placeholder:tracking-normal placeholder:text-muted-foreground/30"
+                      />
+                    </div>
+                    <Button 
+                      type="submit"
+                      className="w-full h-12 rounded-xl text-sm font-bold uppercase tracking-widest bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20 mt-2" 
                       disabled={loading}
-                      className="bg-secondary/50 border-primary/20 h-12 rounded-xl text-center text-base placeholder:text-muted-foreground/30"
-                    />
-                  </div>
-                  <div className="space-y-1.5 flex flex-col items-center">
-                    <label className="text-sm font-bold text-muted-foreground uppercase tracking-widest ml-1 self-start">Passcode (4 digits)</label>
-                    <Input 
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      autoComplete="one-time-code"
-                      maxLength={4}
-                      placeholder="1234" 
-                      value={pin}
-                      onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
-                      disabled={loading}
-                      className="bg-secondary/50 border-primary/20 h-12 rounded-xl text-center text-base tracking-[0.5em] placeholder:tracking-normal placeholder:text-muted-foreground/30"
-                    />
-                  </div>
-                  <Button 
-                    className="w-full h-12 rounded-xl text-sm font-bold uppercase tracking-widest bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20 mt-2" 
-                    onClick={handleLogin} 
-                    disabled={loading}
-                  >
-                    {loading ? <Spinner className="w-4 h-4 mr-2" /> : null}
-                    Log in
-                  </Button>
+                    >
+                      {loading ? <Spinner className="w-4 h-4 mr-2" /> : null}
+                      Log in
+                    </Button>
+                  </form>
                 </CardContent>
               </Card>
             </TabsContent>
 
             <TabsContent value="register" className="mt-4 focus-visible:outline-none">
               <Card className="border-border/40 shadow-xl shadow-black/20 bg-card/80 backdrop-blur-sm rounded-3xl overflow-hidden">
-                <CardContent className="space-y-3.5 pt-1 pb-5 px-6">
-                  <div className="space-y-1.5">
-                    <label className="text-sm font-bold text-muted-foreground uppercase tracking-widest ml-1">Username</label>
-                    <Input 
-                      placeholder="M JACKSON" 
-                      value={username}
-                      onChange={(e) => handleUsernameChange(e.target.value)}
+                <CardContent className="pt-1 pb-5 px-6">
+                  <form className="space-y-3.5" onSubmit={handleRegisterSubmit}>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-bold text-muted-foreground uppercase tracking-widest ml-1">Username</label>
+                      <Input 
+                        placeholder="M JACKSON" 
+                        value={username}
+                        onChange={(e) => handleUsernameChange(e.target.value)}
+                        disabled={loading}
+                        className="bg-secondary/50 border-primary/20 h-12 rounded-xl text-center text-base placeholder:text-muted-foreground/30"
+                      />
+                    </div>
+                    <div className="space-y-1.5 flex flex-col items-center">
+                      <label className="text-sm font-bold text-muted-foreground uppercase tracking-widest ml-1 self-start">Passcode (4 digits)</label>
+                      <Input 
+                        ref={pinInputRef}
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        autoComplete="off"
+                        autoCorrect="off"
+                        autoCapitalize="none"
+                        spellCheck={false}
+                        data-lpignore="true"
+                        data-autofill="false"
+                        maxLength={4}
+                        placeholder="1234" 
+                        value={pin}
+                        onChange={(e) => handlePinChange(e.target.value, handleRegister)}
+                        disabled={loading}
+                        className="bg-secondary/50 border-primary/20 h-12 rounded-xl text-center text-base tracking-[0.5em] placeholder:tracking-normal placeholder:text-muted-foreground/30"
+                      />
+                    </div>
+                    <Button 
+                      type="submit"
+                      className="w-full h-12 rounded-xl text-sm font-bold uppercase tracking-widest bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20 mt-2" 
                       disabled={loading}
-                      className="bg-secondary/50 border-primary/20 h-12 rounded-xl text-center text-base placeholder:text-muted-foreground/30"
-                    />
-                  </div>
-                  <div className="space-y-1.5 flex flex-col items-center">
-                    <label className="text-sm font-bold text-muted-foreground uppercase tracking-widest ml-1 self-start">Passcode (4 digits)</label>
-                    <Input 
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      autoComplete="one-time-code"
-                      maxLength={4}
-                      placeholder="1234" 
-                      value={pin}
-                      onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
-                      disabled={loading}
-                      className="bg-secondary/50 border-primary/20 h-12 rounded-xl text-center text-base tracking-[0.5em] placeholder:tracking-normal placeholder:text-muted-foreground/30"
-                    />
-                  </div>
-                  <Button 
-                    className="w-full h-12 rounded-xl text-sm font-bold uppercase tracking-widest bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20 mt-2" 
-                    onClick={handleRegister} 
-                    disabled={loading}
-                  >
-                    {loading ? <Spinner className="w-4 h-4 mr-2" /> : null}
-                    Create Account
-                  </Button>
+                    >
+                      {loading ? <Spinner className="w-4 h-4 mr-2" /> : null}
+                      Create Account
+                    </Button>
+                  </form>
                 </CardContent>
               </Card>
             </TabsContent>

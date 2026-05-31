@@ -11,6 +11,7 @@ import { supabase } from "@/lib/supabase"
 import { getFlag } from "@/lib/flags"
 import { Spinner } from "@/components/ui/spinner"
 import { toast } from "sonner"
+import { useHistoryLayer } from "@/hooks/use-history-layer"
 
 interface RankingsTabProps {
   poolId?: number
@@ -40,6 +41,18 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
   const [isAdmin, setIsAdmin] = useState(false)
   const [showInvite, setShowInvite] = useState(false)
   const [highlightId, setHighlightId] = useState<number | null>(null)
+
+  const { closeWithHistory: closeInvite } = useHistoryLayer({
+    layerId: `rankings-invite-${poolId}`,
+    isOpen: showInvite,
+    onClose: () => setShowInvite(false),
+  })
+
+  const { closeWithHistory: closeProfile } = useHistoryLayer({
+    layerId: `rankings-profile-${selectedPlayer?.id ?? "none"}`,
+    isOpen: !!selectedPlayer,
+    onClose: () => setSelectedPlayer(null),
+  })
 
   useEffect(() => {
     if (poolId) {
@@ -242,7 +255,7 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
   }
 
   const openProfile = (player: RankedUser) => setSelectedPlayer(player)
-  const closeProfile = () => setSelectedPlayer(null)
+  const closeSelectedPlayer = () => setSelectedPlayer(null)
 
   const getInviteUrl = () => {
     if (typeof window === "undefined") return ""
@@ -329,7 +342,7 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
         <span>#</span>
         <span>User</span>
         <span className="text-center">Pick</span>
-        <span className="text-center">Hits</span>
+        <span className="text-center">Exact</span>
         <span className="text-right">Pts</span>
       </div>
 
@@ -419,7 +432,7 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
       </div>
 
       {/* Invite Modal */}
-      <Dialog open={showInvite} onOpenChange={setShowInvite}>
+      <Dialog open={showInvite} onOpenChange={(open) => (open ? setShowInvite(true) : closeInvite())}>
         <DialogContent className="w-[calc(100%-32px)] max-w-sm rounded-2xl bg-card border-border/50 shadow-2xl p-6 mx-auto">
           <div className="text-center space-y-4">
             <h3 className="text-lg font-bold text-foreground">Invite to <span className="text-primary">{poolName?.toUpperCase()}</span></h3>
@@ -451,7 +464,7 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
             </div>
             
             <button
-              onClick={() => setShowInvite(false)}
+              onClick={closeInvite}
               className="w-full bg-card hover:bg-muted text-muted-foreground py-3 rounded-xl font-bold uppercase tracking-widest transition-all border border-border/50 shadow-sm active:scale-[0.98]"
             >
               Close
@@ -461,14 +474,14 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
       </Dialog>
 
       {/* Profile Modal */}
-      <Dialog open={!!selectedPlayer} onOpenChange={(open) => !open && closeProfile()}>
+      <Dialog open={!!selectedPlayer} onOpenChange={(open) => (open ? undefined : closeProfile())}>
         {selectedPlayer && (
           <DialogContent className="w-[calc(100%-32px)] max-w-md p-0 overflow-hidden border-none bg-transparent shadow-none [&>button]:hidden mx-auto">
             <div className="max-h-[85vh] overflow-y-auto pr-1">
-              <ProfileTab {...toProfileProps(selectedPlayer)} onNavigateToRankings={closeProfile} isPublicView={true} />
+              <ProfileTab {...toProfileProps(selectedPlayer)} onNavigateToRankings={closeSelectedPlayer} isPublicView={true} />
               
               <button 
-                onClick={closeProfile}
+                onClick={closeSelectedPlayer}
                 className="w-full mt-4 bg-card hover:bg-muted text-muted-foreground py-4 rounded-2xl font-bold uppercase tracking-widest transition-all border border-red-500/40 shadow-xl active:scale-[0.98]"
               >
                 Close

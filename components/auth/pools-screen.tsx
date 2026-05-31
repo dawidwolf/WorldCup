@@ -131,22 +131,43 @@ export function PoolsScreen({ userId, onJoined, initialPoolName, onBack }: Pools
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[80vh] px-4 py-8">
-      <div className="w-full max-w-md space-y-8">
-        <button
-          type="button"
-          onClick={onBack}
-          className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-muted-foreground hover:text-foreground transition-colors"
-          aria-label="Back to auth"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back
-        </button>
+    <div className="flex flex-col min-h-screen px-4 py-4">
+      <div className="w-full max-w-md mx-auto space-y-4">
+        <div className="relative flex items-center pt-1 min-h-10">
+          <button
+            type="button"
+            onClick={onBack}
+            className="relative z-10 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-muted-foreground hover:text-foreground transition-colors"
+            aria-label="Back to auth"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back
+          </button>
 
-        <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold tracking-tighter text-primary">Pool Membership</h1>
-          <p className="text-muted-foreground font-medium">Join an existing pool or create a new one</p>
+          <h1 className="absolute left-1/2 -translate-x-1/2 text-3xl font-bold tracking-tighter text-primary">
+            Pools
+          </h1>
         </div>
+
+        {userPools.length > 0 && (
+          <div className="space-y-3">
+            <div className="grid gap-3">
+              {userPools.map((pool) => (
+                <Button
+                  key={pool.pool_id}
+                  variant="secondary"
+                  className="h-16 justify-between px-5 bg-card border border-border/40 hover:border-primary/50 transition-all rounded-2xl shadow-lg shadow-black/10 group active:scale-[0.98]"
+                  onClick={() => onJoined(pool.pool_id)}
+                >
+                  <span className="text-sm font-semibold tracking-wide text-muted-foreground">{pool.pool_name.toUpperCase()}</span>
+                  <span className="bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+                    Enter →
+                  </span>
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <Tabs defaultValue="join" className="w-full">
           <TabsList className="grid w-full grid-cols-2 h-14 bg-secondary/30 p-1.5 rounded-2xl">
@@ -156,9 +177,9 @@ export function PoolsScreen({ userId, onJoined, initialPoolName, onBack }: Pools
           <div className="min-h-[300px]">
             <TabsContent value="join" className="mt-6 focus-visible:outline-none">
               <Card className="border-border/40 shadow-xl shadow-black/20 bg-card/80 backdrop-blur-sm rounded-3xl overflow-hidden">
-                <CardContent className="space-y-3.5 pt-5 pb-5 px-6">
-                  <div className="space-y-1.5">
-                    <label className="text-sm font-bold text-muted-foreground uppercase tracking-widest ml-1">Pool Name</label>
+                <CardContent className="space-y-3.5 pt-1 pb-5 px-6">
+                  <div className="space-y-1">
+                    <label className="mb-3 block text-sm font-bold text-muted-foreground uppercase tracking-widest ml-1">Pool Name</label>
                     <Input 
                       placeholder="FOOTBALLBOYS" 
                       value={joinPoolName}
@@ -181,8 +202,8 @@ export function PoolsScreen({ userId, onJoined, initialPoolName, onBack }: Pools
             <TabsContent value="create" className="mt-6 focus-visible:outline-none">
               <Card className="border-border/40 shadow-xl shadow-black/20 bg-card/80 backdrop-blur-sm rounded-3xl overflow-hidden">
                 <CardContent className="space-y-3.5 pt-5 pb-5 px-6">
-                  <div className="space-y-1.5">
-                    <label className="text-sm font-bold text-muted-foreground uppercase tracking-widest ml-1">Pool Name</label>
+                  <div className="space-y-1">
+                    <label className="mb-3 block text-sm font-bold text-muted-foreground uppercase tracking-widest ml-1">Pool Name</label>
                     <Input 
                       placeholder="FOOTBALLBOYS" 
                       value={poolName}
@@ -201,29 +222,6 @@ export function PoolsScreen({ userId, onJoined, initialPoolName, onBack }: Pools
                 </CardContent>
               </Card>
             </TabsContent>
-
-            <div className="mt-8 space-y-4">
-              {userPools.length > 0 && (
-                <div className="space-y-3">
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em] px-1">Pools</p>
-                  <div className="grid gap-3">
-                    {userPools.map((pool) => (
-                      <Button 
-                        key={pool.pool_id} 
-                        variant="secondary" 
-                        className="h-16 justify-between px-5 bg-card border border-border/40 hover:border-primary/50 transition-all rounded-2xl shadow-lg shadow-black/10 group active:scale-[0.98]"
-                        onClick={() => onJoined(pool.pool_id)}
-                      >
-                        <span className="font-bold text-lg text-foreground">{pool.pool_name.toUpperCase()}</span>
-                        <span className="bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-                          Enter →
-                        </span>
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
         </Tabs>
       </div>

@@ -4,6 +4,7 @@ import { LogOut, Shield, User, Info, ArrowUp, ArrowDown } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { useHistoryLayer } from '@/hooks/use-history-layer'
 
 export interface UserPool {
   pool_id: number
@@ -53,6 +54,12 @@ export function ProfileTab({
   const [showInvite, setShowInvite] = useState(false)
   const [invitePoolName, setInvitePoolName] = useState<string>("")
   const poolIdRef = useRef<number | null>(pools[0]?.pool_id ?? null)
+
+  const { closeWithHistory: closeInvite } = useHistoryLayer({
+    layerId: `profile-invite-${currentUserId ?? username}`,
+    isOpen: showInvite,
+    onClose: () => setShowInvite(false),
+  })
 
   useEffect(() => {
     let mounted = true
@@ -394,9 +401,9 @@ export function ProfileTab({
 
       {/* Statistics Card */}
       <div className="bg-card rounded-2xl p-4 shadow-lg shadow-black/20 border border-border/50">
-        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Your Stats</h3>
+        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Stats</h3>
         <div className="grid grid-cols-4 gap-3 text-center">
-                <StatWithArrows label="Hits" value={displayStats.hits} arrow={arrowState.hits} toneClass="text-foreground" />
+                <StatWithArrows label="All Hits" value={displayStats.hits} arrow={arrowState.hits} toneClass="text-primary" />
                 <StatWithArrows label="Exact" value={displayStats.exactHits} arrow={arrowState.exact} toneClass="text-primary" />
                 <StatWithArrows label="Misses" value={displayStats.misses} arrow={arrowState.misses} toneClass="text-destructive" />
                 <StatWithArrows label="Accuracy" value={`${accuracy}%`} arrow={arrowState.accuracy} toneClass="text-primary" showArrows={false} />
@@ -424,15 +431,15 @@ export function ProfileTab({
                       <span className="font-semibold text-sm text-foreground">{pool.pool_name.toUpperCase()}</span>
                       {pool.is_admin && (
                           <div className="flex items-center gap-1.5">
-                            <span className="bg-primary/20 text-primary text-[8px] px-1.5 py-0.5 rounded flex items-center gap-1 font-bold uppercase tracking-wider border border-primary/30">
-                              <Shield className="w-2.5 h-2.5" /> Admin
+                            <span className="bg-secondary/20 text-primary text-[8px] px-1.5 py-0.5 rounded flex items-center gap-1 font-bold uppercase tracking-wider border border-primary/30">
+                              <Shield className="w-2.5 h-4" /> Admin
                             </span>
                             <button
                               onClick={() => {
                                 setInvitePoolName(pool.pool_name)
                                 setShowInvite(true)
                               }}
-                              className="text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-lg bg-card text-muted-foreground border border-border/60 hover:bg-muted transition-all"
+                              className="text-[11px] font-bold uppercase tracking-widest px-2 py-1 rounded-lg bg-card text-muted-foreground border border-border/60 hover:bg-muted transition-all"
                             >
                               Invite
                             </button>
@@ -441,7 +448,7 @@ export function ProfileTab({
                     </div>
                     <button
                       onClick={() => onLeavePool?.(pool.pool_id)}
-                      className="text-xs font-bold text-destructive bg-destructive/10 px-4 py-2 rounded-xl border border-destructive/20 active:bg-destructive/20 transition-colors"
+                      className="text-xs font-bold text-destructive bg-secondary/10 px-4 py-2 rounded-xl border border-destructive/40 active:bg-destructive/20 transition-colors"
                     >
                       Leave
                     </button>
@@ -453,7 +460,7 @@ export function ProfileTab({
             </div>
           </div>
 
-          <Dialog open={showInvite} onOpenChange={setShowInvite}>
+          <Dialog open={showInvite} onOpenChange={(open) => (open ? setShowInvite(true) : closeInvite())}>
             <DialogContent className="w-[calc(100%-32px)] max-w-sm h-[56vh] sm:h-auto sm:max-h-[85vh] rounded-2xl bg-card border border-border/40 shadow-2xl p-0 mx-auto overflow-hidden [&>button]:hidden">
               <div className="flex h-full flex-col">
                 <div className="px-5 pt-5 pb-3 border-b border-border/30">
@@ -492,7 +499,7 @@ export function ProfileTab({
                 <div className="sticky bottom-0 bg-card/90 backdrop-blur-sm border-t border-border/30 px-5 py-4">
                   <button
                     type="button"
-                    onClick={() => setShowInvite(false)}
+                    onClick={closeInvite}
                     className="w-full py-3 rounded-xl bg-card hover:bg-muted text-muted-foreground font-semibold transition-all border border-red-500/40"
                   >
                     Close
@@ -526,24 +533,24 @@ export function ProfileTab({
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-primary">•</span>
-                <span><span className="text-primary font-semibold">5 points</span> for predicting the tournament winner</span>
+                <span><span className="text-primary font-semibold">10 points</span> for predicting the tournament winner</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-primary">•</span>
-                <span><span className="text-primary font-semibold">3 points</span> for predicting the top scorer</span>
+                <span><span className="text-primary font-semibold">10 points</span> for predicting the top scorer</span>
               </li>
             </ul>
             <div className="mt-3 pt-3 border-t border-border/50">
               <h4 className="text-sm font-semibold text-foreground mb-1">Deadlines</h4>
               <p className="text-muted-foreground text-sm">
-                Match predictions lock exactly at kickoff. Tournament winner and top scorer predictions must be submitted before the first match.
+                Match predictions lock exactly at kickoff. Every prediction can be changed until its deadline. Scores update after matches. 
               </p>
             </div>
           </div>
 
           <button
             onClick={onLogout}
-            className="w-full bg-destructive/10 text-destructive rounded-xl p-3 flex items-center justify-center gap-2 border border-destructive/20 active:bg-destructive/20 transition-colors mt-4"
+            className="w-full bg-secondary/10 text-destructive rounded-xl p-3 flex items-center justify-center gap-2 border border-destructive/40 active:bg-destructive/20 transition-colors mt-4"
           >
             <LogOut className="w-4 h-4" />
             <span className="font-semibold italic">Logout</span>

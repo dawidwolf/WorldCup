@@ -1,7 +1,7 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { Trophy, Users, User, CalendarDays } from "lucide-react"
+import { Trophy, Users, User, CalendarDays, Medal } from "lucide-react"
 
 interface BottomNavProps {
   activeTab: string
@@ -10,8 +10,8 @@ interface BottomNavProps {
 
 const navItems = [
   { id: "matches", label: "Matches", icon: CalendarDays },
-  { id: "players", label: "Bonus", icon: Users },
-  { id: "rankings", label: "Rankings", icon: Trophy },
+  { id: "players", label: "Bonus", icon: Trophy },
+  { id: "rankings", label: "Rankings", icon: Medal },
   { id: "profile", label: "Profile", icon: User },
 ]
 
