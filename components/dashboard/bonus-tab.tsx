@@ -174,7 +174,7 @@ export function BonusTab({ currentUserId, onSaved }: BonusTabProps) {
                     }
                     setLocalWinnerId(team.team_id)
                     setWinnerSearch("")
-                    closeWinnerDropdown()
+                    setShowWinnerDropdown(false)
                     scrollToDefaultPosition()
                     onSaved?.()
                   }}
@@ -246,8 +246,8 @@ export function BonusTab({ currentUserId, onSaved }: BonusTabProps) {
                       }
                       setLocalScorerId(player.player_id)
                       setScorerSearch("")
-                      closeScorerDropdown()
-                      scrollToDefaultPosition()
+                      setShowScorerDropdown(false)
+                      requestAnimationFrame(() => scrollToDefaultPosition())
                       onSaved?.()
                     }}
                     className="w-full flex items-center gap-3 px-4 py-3 hover:bg-secondary/50 transition-colors text-left"

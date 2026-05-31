@@ -257,6 +257,26 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
   const openProfile = (player: RankedUser) => setSelectedPlayer(player)
   const closeSelectedPlayer = () => setSelectedPlayer(null)
 
+  const getRankBadgeClassName = (rank: number, points: number) => {
+    if (points <= 0) {
+      return "bg-muted/60 text-muted-foreground border border-border/50"
+    }
+
+    if (rank === 1) {
+      return "bg-amber-500/20 text-amber-500 border border-amber-500/30"
+    }
+
+    if (rank === 2) {
+      return "bg-slate-400/20 text-slate-400 border border-slate-400/30"
+    }
+
+    if (rank === 3) {
+      return "bg-orange-700/20 text-orange-600 border border-orange-700/30"
+    }
+
+    return "bg-muted/60 text-muted-foreground border border-border/50"
+  }
+
   const getInviteUrl = () => {
     if (typeof window === "undefined") return ""
     return `${window.location.origin}/?pool=${encodeURIComponent(poolName || "")}`
@@ -353,29 +373,18 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
             key={friend.id}
             onClick={() => openProfile(friend)}
             className={cn(
-              "relative grid grid-cols-[2.5rem_1fr_3rem_3rem_3.5rem] gap-2 items-center px-3 py-3 rounded-2xl bg-card border border-border/50 transition-all text-left w-full overflow-hidden",
+              "relative grid grid-cols-[2.5rem_1fr_3rem_3rem_3.5rem] gap-2 items-center px-3 py-3 rounded-2xl bg-muted/25 border border-border/50 transition-all text-left w-full overflow-hidden",
               "cursor-pointer hover:border-primary/30 active:scale-[0.98]",
-              friend.isCurrentUser && "border-primary/50 bg-primary/[0.03]",
-                friend.rank === 1 && "shadow-[0_0_20px_rgba(234,179,8,0.05)]",
-                friend.rank === 2 && "shadow-[0_0_20px_rgba(148,163,184,0.05)]",
-                friend.rank === 3 && "shadow-[0_0_20px_rgba(180,83,9,0.05)]",
+              friend.isCurrentUser && "border-primary/50 bg-muted/35",
                 highlightId === friend.id && "ring-2 ring-primary/30 scale-[1.01]"
             )}
           >
-            {/* Rank-specific Background Glows */}
-            {friend.rank === 1 && <div className="absolute inset-0 bg-amber-500/[0.03] pointer-events-none" />}
-            {friend.rank === 2 && <div className="absolute inset-0 bg-slate-400/[0.03] pointer-events-none" />}
-            {friend.rank === 3 && <div className="absolute inset-0 bg-orange-700/[0.03] pointer-events-none" />}
-
             {/* Rank Badge */}
             <div className="flex justify-center">
               <span
                 className={cn(
                   "w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black italic",
-                  friend.rank === 1 && "bg-amber-500/20 text-amber-500 border border-amber-500/30",
-                  friend.rank === 2 && "bg-slate-400/20 text-slate-400 border border-slate-400/30",
-                  friend.rank === 3 && "bg-orange-700/20 text-orange-600 border border-orange-700/30",
-                  friend.rank > 3 && "bg-muted/50 text-muted-foreground border border-border/50"
+                  getRankBadgeClassName(friend.rank, friend.points)
                 )}
               >
                 {friend.rank}

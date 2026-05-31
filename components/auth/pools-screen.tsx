@@ -177,7 +177,7 @@ export function PoolsScreen({ userId, onJoined, initialPoolName, onBack }: Pools
           <div className="min-h-[300px]">
             <TabsContent value="join" className="mt-6 focus-visible:outline-none">
               <Card className="border-border/40 shadow-xl shadow-black/20 bg-card/80 backdrop-blur-sm rounded-3xl overflow-hidden">
-                <CardContent className="space-y-3.5 pt-1 pb-5 px-6">
+                <CardContent className="space-y-3.5 pt-5 pb-5 px-6">
                   <div className="space-y-1">
                     <label className="mb-3 block text-sm font-bold text-muted-foreground uppercase tracking-widest ml-1">Pool Name</label>
                     <Input 
