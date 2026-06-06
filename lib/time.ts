@@ -3,7 +3,7 @@
 // Set 'isRealTime' to false when you want to simulate a specific moment in the tournament!
 export const timeTravelConfig = {
   isRealTime: true, 
-  mockTime: "2026-06-14T23:45:00Z" // The exact date/time you want to pretend it is
+  mockTime: "2026-06-15T23:45:00Z" // The exact date/time you want to pretend it is
 };
 
 // This function replaces "new Date()" across your entire app

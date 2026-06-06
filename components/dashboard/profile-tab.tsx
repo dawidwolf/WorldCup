@@ -3,17 +3,24 @@
 import { LogOut, Shield, User, Info, ArrowUp, ArrowDown } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useTournamentData } from '@/context/tournament-data-context'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { useHistoryLayer } from '@/hooks/use-history-layer'
+
+
 
 export interface UserPool {
   pool_id: number
   pool_name: string
   is_admin: boolean
   joined_at: string
+  hideLanguageToggle: boolean,
 }
 
+
+
 interface ProfileTabProps {
+  hideLanguageToggle: boolean,
   username: string
   userPoints: number
   currentUserId?: number
@@ -32,6 +39,7 @@ interface ProfileTabProps {
 }
 
 export function ProfileTab({
+  hideLanguageToggle,
   username,
   userPoints,
   currentUserId,
@@ -48,6 +56,7 @@ export function ProfileTab({
   onNavigateToBonus,
   isPublicView = false,
 }: ProfileTabProps) {
+  const { language, setLanguage, t } = useTournamentData()
   const [localStats, setLocalStats] = useState<{ exactHits: number; hits: number; misses: number } | null>(null)
   const [userPointsLocal, setUserPointsLocal] = useState<number | null>(null)
   const [userRankLocal, setUserRankLocal] = useState<number | null>(null)
@@ -90,7 +99,7 @@ export function ProfileTab({
           computeLastMatchDeltas(currentUserId, data)
         }
       } catch (err) {
-        console.error('Failed to fetch user stats', err)
+        console.error(t('Failed to fetch user stats'), err)
       }
     }
 
@@ -225,7 +234,7 @@ export function ProfileTab({
       const me = out.find((r) => r.id === currentUserId)
       setUserRankLocal(me ? me.rank : 0)
     } catch (err) {
-      console.error('Failed to compute rank for user', err)
+      console.error(t('Failed to compute rank for user'), err)
     }
   }
 
@@ -301,7 +310,7 @@ export function ProfileTab({
         accuracy: accAfter > accBefore ? 'up' : accAfter < accBefore ? 'down' : 'none'
       })
     } catch (err) {
-      console.error('Failed to compute last-match deltas', err)
+      console.error(t('Failed to compute last-match deltas'), err)
       setArrowState({ hits: 'none', exact: 'none', misses: 'none', accuracy: 'none' })
     }
   }
@@ -345,29 +354,54 @@ export function ProfileTab({
     try {
       await copyTextToClipboard(url)
     } catch (err) {
-      console.error('Copy invite failed', err)
+      console.error(t('Copy invite failed'), err)
     }
   }
 
   return (
     <div className="space-y-3">
-      {/* Profile Header Card - Compact horizontal layout */}
-      <button
-        onClick={onNavigateToRankings}
-        className="w-full bg-card rounded-2xl p-4 shadow-lg shadow-black/20 border border-border/50 flex items-center justify-between text-left hover:border-primary/50 transition-colors"
-      >
-        <span className="text-lg font-bold text-foreground">{username.toUpperCase()}</span>
-        <div className="text-right">
-          <p className="text-lg font-bold text-primary">#{userRankLocal ?? rank}</p>
-          <p className="text-sm text-muted-foreground">{(userPointsLocal ?? userPoints) || 0} pts</p>
-        </div>
-      </button>
+      {/* Dynamic Header Grid: full width if toggle is hidden, 2 columns if visible */}
+      <div className={`grid gap-3 ${hideLanguageToggle ? 'grid-cols-1' : 'grid-cols-2'}`}>
+        
+        {/* Left: Profile Header Card */}
+        <button
+          onClick={onNavigateToRankings}
+          className="w-full bg-card rounded-2xl p-4 shadow-lg shadow-black/20 border border-border/50 flex items-center justify-between text-left hover:border-primary/50 transition-colors"
+        >
+          <span className="text-lg font-bold text-foreground">{username.toUpperCase()}</span>
+          <div className="text-right flex items-center gap-2">
+            <p className="text-lg font-bold text-primary">#{userRankLocal ?? rank}</p>
+            <span className="text-muted-foreground text-sm">|</span>
+            <p className="text-sm text-muted-foreground">{(userPointsLocal ?? userPoints) || 0} pts</p>
+          </div>
+        </button>
+
+        {/* Right: Language Card */}
+        {!hideLanguageToggle && (
+          <div className="bg-card rounded-2xl p-3 shadow-lg shadow-black/20 border border-border/50 flex flex-col justify-between">
+            <div className="mt-1 flex items-center gap-2">
+              <button
+                onClick={() => setLanguage('en')}
+                className={`flex-1 py-2 rounded-xl font-bold uppercase tracking-wider text-base ${language === 'en' ? 'bg-card text-white border border-primary/60' : 'bg-card text-muted-foreground border border-border/40'}`}
+              >
+                🇬🇧 EN
+              </button>
+              <button
+                onClick={() => setLanguage('hu')}
+                className={`flex-1 py-2 rounded-xl font-bold uppercase tracking-wider text-base ${language === 'hu' ? 'bg-card text-white border border-primary/60' : 'bg-card text-muted-foreground border border-border/40'}`}
+              >
+                🇭🇺 HU
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Picks Cards */}
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-card rounded-2xl p-4 shadow-lg shadow-black/20 border border-border/50">
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-            {isPublicView ? "Winner" : "Your Winner"}
+            {isPublicView ? t("Winner") : t("Your Winner")}
           </h3>
           {selectedWinner ? (
             <button
@@ -378,12 +412,12 @@ export function ProfileTab({
               <span className="text-foreground font-semibold">{selectedWinner.code}</span>
             </button>
           ) : (
-            <p className="text-muted-foreground text-sm">Not selected</p>
+            <p className="text-muted-foreground text-sm">{t("Not selected")}</p>
           )}
         </div>
         <div className="bg-card rounded-2xl p-4 shadow-lg shadow-black/20 border border-border/50">
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-            {isPublicView ? "Scorer" : "Your Scorer"}
+            {isPublicView ? t("Scorer") : t("Your Scorer")}
           </h3>
           {selectedScorer ? (
             <button
@@ -394,19 +428,19 @@ export function ProfileTab({
               <span className="text-foreground font-semibold">{selectedScorer.name}</span>
             </button>
           ) : (
-            <p className="text-muted-foreground text-sm">Not selected</p>
+            <p className="text-muted-foreground text-sm">{t("Not selected")}</p>
           )}
         </div>
       </div>
 
       {/* Statistics Card */}
       <div className="bg-card rounded-2xl p-4 shadow-lg shadow-black/20 border border-border/50">
-        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Stats</h3>
+        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">{t("Stats")}</h3>
         <div className="grid grid-cols-4 gap-3 text-center">
-                <StatWithArrows label="All Hits" value={displayStats.hits} arrow={arrowState.hits} toneClass="text-primary" />
-                <StatWithArrows label="Exact" value={displayStats.exactHits} arrow={arrowState.exact} toneClass="text-primary" />
-                <StatWithArrows label="Misses" value={displayStats.misses} arrow={arrowState.misses} toneClass="text-destructive" />
-                <StatWithArrows label="Accuracy" value={`${accuracy}%`} arrow={arrowState.accuracy} toneClass="text-primary" showArrows={false} />
+                <StatWithArrows label={t("All Hits")} value={displayStats.hits} arrow={arrowState.hits} toneClass="text-primary" />
+                <StatWithArrows label={t("Exact")} value={displayStats.exactHits} arrow={arrowState.exact} toneClass="text-primary" />
+                <StatWithArrows label={t("Misses")} value={displayStats.misses} arrow={arrowState.misses} toneClass="text-destructive" />
+                <StatWithArrows label={t("Accuracy")} value={`${accuracy}%`} arrow={arrowState.accuracy} toneClass="text-primary" showArrows={false} />
               </div>
       </div>
 
@@ -415,12 +449,12 @@ export function ProfileTab({
           {/* Pools Management Card */}
           <div className="bg-card rounded-2xl p-4 shadow-lg shadow-black/20 border border-border/50">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Your Pools</h3>
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("Your Pools")}</h3>
               <button 
                 onClick={onNavigateToPools}
                 className="text-[10px] font-bold text-primary uppercase tracking-widest bg-primary/10 px-2 py-1 rounded-lg border border-primary/20"
               >
-                Switch Pool →
+                {t("Switch Pool")} →
               </button>
             </div>
             <div className="space-y-2">
@@ -441,7 +475,7 @@ export function ProfileTab({
                               }}
                               className="text-[11px] font-bold uppercase tracking-widest px-2 py-1 rounded-lg bg-card text-muted-foreground border border-border/60 hover:bg-muted transition-all"
                             >
-                              Invite
+                              {t("Invite")}
                             </button>
                           </div>
                       )}
@@ -450,7 +484,7 @@ export function ProfileTab({
                       onClick={() => onLeavePool?.(pool.pool_id)}
                       className="text-xs font-bold text-destructive bg-secondary/10 px-4 py-2 rounded-xl border border-destructive/40 active:bg-destructive/20 transition-colors"
                     >
-                      Leave
+                      {t("Leave")}
                     </button>
                   </div>
                 ))
@@ -465,7 +499,7 @@ export function ProfileTab({
               <div className="flex h-full flex-col">
                 <div className="px-5 pt-5 pb-3 border-b border-border/30">
                   <h3 className="text-lg font-bold text-foreground">
-                    Invite players to <span className="text-primary">{invitePoolName.toUpperCase()}</span>
+                    {t("Invite players to")} <span className="text-primary">{invitePoolName.toUpperCase()}</span>
                   </h3>
                 </div>
 
@@ -514,46 +548,51 @@ export function ProfileTab({
             <div className="bg-primary/10 border border-primary/20 rounded-2xl p-4 flex gap-3 items-start">
               <Info className="w-5 h-5 text-primary shrink-0 mt-0.5" />
               <p className="text-sm text-foreground/90 leading-snug">
-                Your match predictions are <span className="text-primary font-bold italic">global</span> and apply to every pool you belong to — you only need to predict once.
+                {t("Your match predictions are")} <span className="text-primary font-bold italic">{t("global")}</span> {t("and apply to every pool you belong to — you only need to predict once.")}
               </p>
             </div>
           )}
 
           {/* Official Rules Card */}
           <div className="bg-card rounded-2xl p-4 shadow-lg shadow-black/20 border border-border/50">
-            <h3 className="text-sm font-semibold text-foreground mb-3">Official Rules</h3>
+            <h3 className="text-sm font-semibold text-foreground mb-3">{t("Official Rules")}</h3>
             <ul className="space-y-2 text-muted-foreground text-sm">
               <li className="flex items-start gap-2">
                 <span className="text-primary">•</span>
-                <span><span className="text-primary font-semibold">3 points</span> for predicting the exact score</span>
+                <span><span className="text-primary font-semibold">{t("5 points")}</span> {t("for the exact score")}</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-primary">•</span>
-                <span><span className="text-primary font-semibold">1 point</span> for predicting the correct winner</span>
+                <span><span className="text-primary font-semibold">{t("3 points")}</span> {t("for the correct winner and goal difference")}</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-primary">•</span>
-                <span><span className="text-primary font-semibold">10 points</span> for predicting the tournament winner</span>
+                <span><span className="text-primary font-semibold">{t("2 points")}</span> {t("for the correct winner")}</span>
+              </li>
+              <div className="mt-3 pt-3 border-t border-border/50"></div>
+              <li className="flex items-start gap-2">
+                <span className="text-primary">•</span>
+                <span><span className="text-primary font-semibold">{t("10 points")}</span> {t("for the tournament winner")}</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-primary">•</span>
-                <span><span className="text-primary font-semibold">10 points</span> for predicting the top scorer</span>
+                <span><span className="text-primary font-semibold">{t("10 points")}</span> {t("for the top scorer")}</span>
               </li>
             </ul>
             <div className="mt-3 pt-3 border-t border-border/50">
-              <h4 className="text-sm font-semibold text-foreground mb-1">Deadlines</h4>
+              <h4 className="text-sm font-semibold text-foreground mb-1">{t("Deadlines")}</h4>
               <p className="text-muted-foreground text-sm">
-                Match predictions lock exactly at kickoff. Every prediction can be changed until its deadline. Scores update after matches. 
+                {t("Match predictions lock exactly at kickoff. Every prediction can be changed until its deadline. Scores update after matches.")}
               </p>
             </div>
           </div>
 
           <button
             onClick={onLogout}
-            className="w-full bg-secondary/10 text-destructive rounded-xl p-3 flex items-center justify-center gap-2 border border-destructive/40 active:bg-destructive/20 transition-colors mt-4"
+            className="w-full bg-card text-destructive rounded-xl p-3 flex items-center justify-center gap-2 border border-border/50 active:bg-destructive/20 transition-colors mt-4"
           >
             <LogOut className="w-4 h-4" />
-            <span className="font-semibold italic">Logout</span>
+            <span className="font-semibold italic">{t("Logout")}</span>
           </button>
         </>
       )}

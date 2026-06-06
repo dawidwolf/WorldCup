@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils"
 import { Check } from "lucide-react"
 import { Spinner } from "@/components/ui/spinner"
 import { useHistoryLayer } from "@/hooks/use-history-layer"
+import { useTournamentData } from "@/context/tournament-data-context"
 
 interface Team {
   code: string
@@ -55,7 +56,9 @@ export function MatchCard({
   isSaving = false,
   activePoolId = null,
   currentUserId = null,
-}: MatchCardProps) {
+  
+}: MatchCardProps): import("react/jsx-runtime").JSX.Element {
+  const { t } = useTournamentData()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [homeScore, setHomeScore] = useState<string>(
     initialPrediction?.home?.toString() ?? ""
@@ -117,9 +120,11 @@ export function MatchCard({
     // @ts-ignore
     saveTimer.current = window.setTimeout(() => {
       if (!isFocused.current) {
-        // don't save an entirely empty prediction (no previous prediction)
         const hadPrev = (initialPrediction && (initialPrediction.home !== null || initialPrediction.away !== null)) || (controlledPrediction && (controlledPrediction.home !== null || controlledPrediction.away !== null))
-        if (home === null && away === null && !hadPrev) return
+        const bothNull = home === null && away === null
+        const oneNull = (home === null || away === null) && !bothNull
+        // only save if both values are set, or both null (and there's something to delete)
+        if (oneNull || (bothNull && !hadPrev)) return
         onPredictionChange?.(id, home, away)
       }
     }, 500)
@@ -134,7 +139,10 @@ export function MatchCard({
     const h = parseOrNull(homeScore)
     const a = parseOrNull(awayScore)
     const hadPrev = (initialPrediction && (initialPrediction.home !== null || initialPrediction.away !== null)) || (controlledPrediction && (controlledPrediction.home !== null || controlledPrediction.away !== null))
-    if (h === null && a === null && !hadPrev) return
+    const bothNull = h === null && a === null
+    const oneNull = (h === null || a === null) && !bothNull
+    // only save if both values are set, or both null (and there's something to delete)
+    if (oneNull || (bothNull && !hadPrev)) return
     onPredictionChange?.(id, h, a)
   }
 
@@ -144,28 +152,28 @@ export function MatchCard({
       return (
         <span className="bg-muted px-3 py-1 rounded-full text-xs font-medium text-muted-foreground flex items-center gap-2">
           <Spinner className="w-3 h-3" />
-          Saving...
+          {t("Saving...")}
         </span>
       )
     }
     if (isPostponed) {
       return (
         <span className="bg-orange-500/20 text-orange-400 px-3 py-1 rounded-full text-xs font-medium">
-          Postponed
+          {t("Postponed")}
         </span>
       )
     }
     if (isFinishedByStatus) {
       return (
         <span className="bg-muted px-3 py-1 rounded-full text-xs font-medium text-muted-foreground">
-          Finished
+          {t("Finished")}
         </span>
       )
     }
     if (isLiveByStatus) {
       return (
         <span className="bg-red-500/20 text-red-500 px-3 py-1 rounded-full text-xs font-medium animate-pulse">
-          Live
+          {t("Live")}
         </span>
       )
     }
@@ -173,21 +181,21 @@ export function MatchCard({
       return (
         <span className="bg-primary/20 text-primary px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1">
           <Check className="w-3 h-3" />
-          Saved
+          {t("Saved")}
         </span>
       )
     }
     if (usesTimeBasedBadge && closesIn) {
       return (
         <span className="bg-destructive/20 text-destructive px-3 py-1 rounded-full text-xs font-medium animate-pulse">
-          Closes in {closesIn}
+          {t("Closes soon")}
         </span>
       )
     }
     if (usesTimeBasedBadge && isToday) {
       return (
         <span className="bg-destructive/20 text-destructive px-3 py-1 rounded-full text-xs font-medium animate-pulse">
-          Closes soon
+          {t("Closes soon")}
         </span>
       )
     }
@@ -195,7 +203,7 @@ export function MatchCard({
     // Future matches (not today, not completed, not saved)
     return (
       <span className="bg-amber-500/20 text-amber-500 px-3 py-1 rounded-full text-xs font-medium">
-        Coming up
+        {t("Coming up")}
       </span>
     )
   }
@@ -313,18 +321,18 @@ export function MatchCard({
                 const predAway = (controlledPrediction && typeof controlledPrediction.away !== 'undefined') ? controlledPrediction?.away : initialPrediction?.away
 
                 if (predHome == null && predAway == null) {
-                  return "No prediction submitted."
+                  return t("No prediction submitted.")
                 }
 
                 const ph = predHome ?? 0
                 const pa = predAway ?? 0
-                return `You predicted: ${ph}:${pa}.`
+                return t(`You predicted: ${ph}:${pa}.`)
               })()}
               <span className={cn(
                 "ml-1",
                 isFinishedByStatus ? "text-muted-foreground" : "text-primary"
               )}>
-                Tap to see predictions.
+                {t("Tap to see predictions")}
               </span>
             </div>
 
@@ -332,8 +340,9 @@ export function MatchCard({
               <div>
                 <div className={cn(
                   "px-3 py-1 rounded-full text-xs font-medium inline-flex items-center justify-center",
-                  pointsEarned.amount === 3 ? "bg-emerald-600 text-white" :
-                  pointsEarned.amount === 1 ? "border border-emerald-500 text-emerald-500 bg-transparent" :
+                  pointsEarned.amount === 5 ? "bg-emerald-600 text-white" :
+                  pointsEarned.amount === 3 ? "bg-blue-600 text-white" :
+                  pointsEarned.amount === 2 ? "border border-emerald-500 text-emerald-500 bg-transparent" :
                   "bg-muted text-muted-foreground"
                 )}>
                   <span>

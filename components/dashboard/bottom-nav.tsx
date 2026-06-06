@@ -1,21 +1,27 @@
 "use client"
 
+import { useTournamentData } from "@/context/tournament-data-context"
 import { cn } from "@/lib/utils"
 import { Trophy, Users, User, CalendarDays, Medal } from "lucide-react"
 
+type DashboardTab = "matches" | "rankings" | "players" | "profile"
+
 interface BottomNavProps {
-  activeTab: string
-  onTabChange: (tab: string) => void
+  activeTab: DashboardTab
+  onTabChange: (tab: DashboardTab) => void
 }
 
-const navItems = [
-  { id: "matches", label: "Matches", icon: CalendarDays },
-  { id: "players", label: "Bonus", icon: Trophy },
-  { id: "rankings", label: "Rankings", icon: Medal },
-  { id: "profile", label: "Profile", icon: User },
-]
+
 
 export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
+  const { t } = useTournamentData()
+
+const navItems: { id: DashboardTab; label: string; icon: any }[] = [
+  { id: "matches", label: t("Matches"), icon: CalendarDays },
+  { id: "players", label: t("Bonus"), icon: Trophy },
+  { id: "rankings", label: t("Rankings"), icon: Medal },
+  { id: "profile", label: t("Profile"), icon: User },
+]
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 glass-effect border-t safe-area-pb">
       <div className="flex items-center justify-around py-2 px-4">

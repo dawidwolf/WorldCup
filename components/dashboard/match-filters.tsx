@@ -1,5 +1,6 @@
 "use client"
 
+import { useTournamentData } from "@/context/tournament-data-context"
 import { cn } from "@/lib/utils"
 
 interface MatchFiltersProps {
@@ -7,14 +8,19 @@ interface MatchFiltersProps {
   onFilterChange: (filter: string) => void
 }
 
-const filters = [
-  { id: "all", label: "All Matches" },
-  { id: "today", label: "Today" },
-  { id: "group", label: "Groups" },
-  { id: "knockouts", label: "Knockouts" },
-]
+
+
+
 
 export function MatchFilters({ activeFilter, onFilterChange }: MatchFiltersProps) {
+  const { t } = useTournamentData()
+  const filters = [
+  { id: "all", label: t("All Matches") },
+  { id: "today", label: t("Today") },
+  { id: "group", label: t("Groups") },
+  { id: "knockouts", label: t("Knockouts") },
+]
+
   return (
     <div className="fixed top-[44px] left-0 right-0 z-40 bg-transparent">
       <div className="relative px-4 h-12">
@@ -41,3 +47,7 @@ export function MatchFilters({ activeFilter, onFilterChange }: MatchFiltersProps
     </div>
   )
 }
+function t(arg0: string) {
+  throw new Error("Function not implemented.")
+}
+

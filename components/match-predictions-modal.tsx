@@ -9,8 +9,8 @@ interface PredictionRow {
   user_id: number
   username?: string
   predictor_name?: string
-  display_home_score: string
-  display_away_score: string
+  display_home_score: string | null
+  display_away_score: string | null
   is_finished: boolean
   points_delta?: number | null
   event_type?: string | null
@@ -112,8 +112,8 @@ export default function MatchPredictionsModal({ matchId, isOpen, onClose, active
                   user_id: p.user_id,
                   username: usersMap.get(p.user_id)?.username ?? undefined,
                   predictor_name: usersMap.get(p.user_id)?.username ?? undefined,
-                  display_home_score: p.predicted_home_score != null ? String(p.predicted_home_score) : null,
-                  display_away_score: p.predicted_away_score != null ? String(p.predicted_away_score) : null,
+                  display_home_score: p.predicted_home_score != null ? String(p.predicted_home_score) : '',
+                  display_away_score: p.predicted_away_score != null ? String(p.predicted_away_score) : '',
                   is_finished: matchInfo?.is_finished ?? false,
                   points_delta: null,
                   points_total: usersMap.get(p.user_id)?.points_total ?? null,
@@ -204,22 +204,30 @@ export default function MatchPredictionsModal({ matchId, isOpen, onClose, active
     } else {
       const actH = matchInfo.home_score
       const actA = matchInfo.away_score
-      if (actH === ph && actA === pa) amount = 3
-      else if (Math.sign(actH - actA) === Math.sign(ph - pa)) amount = 1
+      if (actH === ph && actA === pa) amount = 5
+      else if ((actH - actA) === (ph - pa)) amount = 3
+      else if (Math.sign(actH - actA) === Math.sign(ph - pa)) amount = 2
       else amount = 0
     }
 
-    if (amount === 3) {
+    if (amount === 5) {
       return (
         <span className="ml-2 inline-flex items-center text-xs font-medium px-3 py-1 rounded-full bg-emerald-600 text-white">
+          5 pts
+        </span>
+      )
+    }
+    if (amount === 3) {
+      return (
+        <span className="ml-2 inline-flex items-center text-xs font-medium px-3 py-1 rounded-full bg-blue-600 text-white">
           3 pts
         </span>
       )
     }
-    if (amount === 1) {
+    if (amount === 2) {
       return (
         <span className="ml-2 inline-flex items-center text-xs font-medium px-3 py-1 rounded-full border border-emerald-500 text-emerald-500 bg-transparent">
-          1 pts
+          2 pts
         </span>
       )
     }

@@ -2,10 +2,12 @@ import { useRef, useState, useEffect } from "react"
 import { Search, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useBonus } from "@/hooks/use-bonus"
+import type { DBTeam, DBPlayer } from "@/hooks/use-bonus"
 import { Spinner } from "@/components/ui/spinner"
 import { getFlag } from "@/lib/flags"
 import { toast } from "sonner"
 import { useHistoryLayer } from "@/hooks/use-history-layer"
+import { useTournamentData } from "@/context/tournament-data-context"
 
 interface BonusTabProps {
   currentUserId: number
@@ -14,6 +16,7 @@ interface BonusTabProps {
 
 export function BonusTab({ currentUserId, onSaved }: BonusTabProps) {
   const { teams, players, savedWinnerId, savedScorerId, goldenBootLeaders, isLocked, loading, saveWinner, saveScorer } = useBonus(currentUserId)
+  const { t } = useTournamentData()
   const winnerInputRef = useRef<HTMLInputElement | null>(null)
   const scorerInputRef = useRef<HTMLInputElement | null>(null)
   const winnerCardRef = useRef<HTMLDivElement | null>(null)
@@ -53,24 +56,24 @@ export function BonusTab({ currentUserId, onSaved }: BonusTabProps) {
 
   const selectedWinner = teams.find(t => t.team_id === localWinnerId)
 
-  const getPlayerTeamInfo = (teamId: number) => {
+  const getPlayerTeamInfo = (teamId?: number | null) => {
+    if (teamId == null) return { teamName: "Unknown", flag: "⚽" }
     const team = teams.find(t => t.team_id === teamId)
     return {
-      teamName: team?.team_name || "Unknown",
-      flag: team ? getFlag(team.team_flag || team.abbreviation) : "⚽"
+      teamName: team?.team_name ?? "Unknown",
+      flag: team ? getFlag(team.team_flag ?? team.abbreviation ?? undefined) : "⚽"
     }
   }
 
   const selectedScorer = players.find(p => p.player_id === localScorerId)
   const scorerTeamInfo = selectedScorer ? getPlayerTeamInfo(selectedScorer.team_id) : null
 
-  const filteredTeams = teams.filter(
-    (team) =>
-      team.team_name.toLowerCase().includes(winnerSearch.toLowerCase()) ||
-      team.abbreviation.toLowerCase().includes(winnerSearch.toLowerCase())
+  const filteredTeams = teams.filter(team =>
+    (team.team_name ?? "").toLowerCase().includes(winnerSearch.toLowerCase()) ||
+    (team.abbreviation ?? "").toLowerCase().includes(winnerSearch.toLowerCase())
   )
 
-  const filteredPlayers = players.filter((player) =>
+  const filteredPlayers = players.filter(player =>
     player.player_name.toLowerCase().includes(scorerSearch.toLowerCase())
   )
 
@@ -79,14 +82,14 @@ export function BonusTab({ currentUserId, onSaved }: BonusTabProps) {
       if (hasSelection) {
         return (
           <span className="bg-muted px-2 py-1 rounded-md text-xs font-medium text-muted-foreground flex items-center gap-1">
-            <Check className="w-3 h-3" /> Saved
+            <Check className="w-3 h-3" /> {t("Saved")}
           </span>
         )
       }
 
       return (
         <span className="bg-muted px-2 py-1 rounded-md text-xs font-medium text-muted-foreground">
-          Locked
+          {t("Locked")}
         </span>
       )
     }
@@ -94,14 +97,14 @@ export function BonusTab({ currentUserId, onSaved }: BonusTabProps) {
     if (hasSelection) {
       return (
         <span className="bg-primary/20 text-primary px-2 py-1 rounded-md text-xs font-medium flex items-center gap-1">
-          <Check className="w-3 h-3" /> Saved
+          <Check className="w-3 h-3" /> {t("Saved")}
         </span>
       )
     }
 
     return (
       <span className="bg-destructive/20 text-destructive px-2 py-1 rounded-md text-xs font-medium animate-pulse">
-        Closes soon
+        {t("Closes soon")}
       </span>
     )
   }
@@ -123,14 +126,14 @@ export function BonusTab({ currentUserId, onSaved }: BonusTabProps) {
       <div ref={winnerCardRef} className="scroll-mt-32 bg-card rounded-2xl p-4 shadow-lg shadow-black/20 border border-border/50">
         <div className="flex justify-between items-center mb-3">
           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-            Predict Winner
+            {t("Predict Winner")}
           </h3>
           {renderBadge(!!localWinnerId, isLocked)}
         </div>
         <div className="relative">
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-2xl">
-              {selectedWinner ? getFlag(selectedWinner.team_flag || selectedWinner.abbreviation) : "🏆"}
+              {selectedWinner ? getFlag(selectedWinner.team_flag ?? selectedWinner.abbreviation ?? undefined) : "🏆"}
             </span>
             <input
               ref={winnerInputRef}
@@ -148,7 +151,7 @@ export function BonusTab({ currentUserId, onSaved }: BonusTabProps) {
                 scrollCardToTop(winnerCardRef)
               }}
               onBlur={() => setTimeout(() => closeWinnerDropdown(), 200)}
-              placeholder={selectedWinner ? selectedWinner.team_name : "Search team..."}
+              placeholder={selectedWinner?.team_name ?? t("Search team...")}
               readOnly={!winnerCanEdit}
               className={cn(
                 "w-full bg-secondary/50 border border-border/50 rounded-xl pl-12 pr-10 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50",
@@ -166,10 +169,10 @@ export function BonusTab({ currentUserId, onSaved }: BonusTabProps) {
                     e.preventDefault()
                     winnerInputRef.current?.blur()
                   }}
-                  onClick={async () => {
+                    onClick={async () => {
                     const result = await saveWinner(team.team_id)
-                    if (result?.error) {
-                      toast.error('Failed to save winner pick')
+                    if ((result as any)?.error) {
+                      toast.error(t('Failed to save winner pick'))
                       return
                     }
                     setLocalWinnerId(team.team_id)
@@ -180,7 +183,7 @@ export function BonusTab({ currentUserId, onSaved }: BonusTabProps) {
                   }}
                   className="w-full flex items-center gap-3 px-4 py-3 hover:bg-secondary/50 transition-colors text-left"
                 >
-                  <span className="text-2xl">{getFlag(team.team_flag || team.abbreviation)}</span>
+                  <span className="text-2xl">{getFlag(team.team_flag ?? team.abbreviation ?? undefined)}</span>
                   <span className="text-foreground">{team.team_name}</span>
                   <span className="text-muted-foreground text-sm ml-auto">{team.abbreviation}</span>
                 </button>
@@ -193,7 +196,7 @@ export function BonusTab({ currentUserId, onSaved }: BonusTabProps) {
       <div ref={scorerCardRef} className="scroll-mt-14 bg-card rounded-2xl p-4 shadow-lg shadow-black/20 border border-border/50">
         <div className="flex justify-between items-center mb-3">
           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-            Predict Top Scorer
+            {t("Predict Top Scorer")}
           </h3>
           {renderBadge(!!localScorerId, isLocked)}
         </div>
@@ -218,7 +221,7 @@ export function BonusTab({ currentUserId, onSaved }: BonusTabProps) {
                 scrollCardToTop(scorerCardRef)
               }}
               onBlur={() => setTimeout(() => closeScorerDropdown(), 200)}
-              placeholder={selectedScorer ? selectedScorer.player_name : "Search player..."}
+              placeholder={selectedScorer ? selectedScorer.player_name : t("Search player...")}
               readOnly={!scorerCanEdit}
               className={cn(
                 "w-full bg-secondary/50 border border-border/50 rounded-xl pl-12 pr-10 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50",
@@ -240,8 +243,8 @@ export function BonusTab({ currentUserId, onSaved }: BonusTabProps) {
                     }}
                     onClick={async () => {
                       const result = await saveScorer(player.player_id)
-                      if (result?.error) {
-                        toast.error('Failed to save top scorer pick')
+                      if ((result as any)?.error) {
+                        toast.error(t('Failed to save top scorer pick'))
                         return
                       }
                       setLocalScorerId(player.player_id)
@@ -267,12 +270,12 @@ export function BonusTab({ currentUserId, onSaved }: BonusTabProps) {
 
       <div className="bg-secondary/30 rounded-2xl p-4 shadow-lg shadow-black/20 border border-border/50">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-          Live Golden Boot Race
+          {t("Live Golden Boot Race")}
         </h3>
-        <div className="px-3 mb-2 grid grid-cols-[5.7rem_1fr_3rem] items-center text-xs text-muted-foreground font-bold uppercase tracking-widest">
+        <div className="px-3 mb-2 grid grid-cols-[2.5rem_1fr_3rem] items-center text-xs text-muted-foreground font-bold uppercase tracking-widest">
           <span className="pl-1">#</span>
-          <span>Player</span>
-          <span className="text-right">Goals</span>
+          <span>{t("Player")}</span>
+          <span className="text-right">{t("Goals")}</span>
         </div>
         <div className="space-y-2">
           {(() => {

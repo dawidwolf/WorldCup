@@ -1,6 +1,6 @@
 ﻿"use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { supabase } from "@/lib/supabase"
 import { MatchCard } from "./match-card"
 import { MatchFilters } from "./match-filters"
@@ -8,6 +8,46 @@ import { Spinner } from "@/components/ui/spinner"
 import { toast } from "sonner"
 import { getFlag as mapFlag } from '@/lib/flags'
 import { getAppTime } from '@/lib/time'
+import { useTournamentData } from "@/context/tournament-data-context"
+
+// Local lightweight types to avoid circular type resolution issues
+type Match = {
+  match_id: number
+  kickoff_utc: string | null
+  group?: string | null
+  round?: string | null
+  is_finished?: boolean | null
+  status?: string | null
+  home_team_id?: number | null
+  away_team_id?: number | null
+  home_team?: string | null
+  away_team?: string | null
+  home_flag?: string | null
+  away_flag?: string | null
+  home_score?: number | null
+  away_score?: number | null
+}
+
+type Prediction = {
+  match_id: number
+  predicted_home_score: number | null
+  predicted_away_score: number | null
+}
+
+type Team = {
+  team_id?: number
+  abbreviation?: string | null
+  team_flag?: string | null
+  fifa_code?: string | null
+  team_name?: string | null
+  group?: string | null
+}
+
+type Standing = {
+  team_id?: number
+  points?: number
+  goal_difference?: number
+}
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const MATCH_LENGTH_MS = 105 * 60 * 1000
@@ -18,10 +58,10 @@ const LOCAL_DAY_FORMATTER = new Intl.DateTimeFormat('en-US', {
   day: '2-digit',
 })
 
-const getMatchTimestamp = (kickoffUtc: string) => Date.parse(kickoffUtc)
+const getMatchTimestamp = (kickoffUtc?: string | null) => kickoffUtc ? Date.parse(kickoffUtc) : 0
 const getLocalDayKey = (timestampMs: number) => LOCAL_DAY_FORMATTER.format(timestampMs)
 
-const formatMatchTime = (kickoffUtc: string) => {
+const formatMatchTime = (kickoffUtc?: string | null) => {
   const now = getAppTime()
   const kickoffMs = getMatchTimestamp(kickoffUtc)
   const todayKey = getLocalDayKey(now.getTime())
@@ -56,106 +96,26 @@ const getFlag = (code: string) => {
 }
 
 export function MatchesTab({ currentUserId, activeFilter, onFilterChange, activePoolId = null }: MatchesTabProps) {
-  const [matches, setMatches] = useState<any[]>([])
-  const [teams, setTeams] = useState<any[]>([])
-  const [standings, setStandings] = useState<any[]>([])
+  const { t } = useTournamentData()
+  const { matches, predictions: predictionsMap, teams, standings, updatePrediction, isLoading: loading } = useTournamentData()
   const [activeGroup, setActiveGroup] = useState<string | null>(null)
-  const [predictions, setPredictions] = useState<Record<string, { home: number | null; away: number | null }>>({})
-  const [loading, setLoading] = useState(true)
   const [now, setNow] = useState(getAppTime())
   const [saving, setSaving] = useState<Record<string, boolean>>({})
   const lastSavedRef = useRef<Record<string, { home: number | null; away: number | null }>>({})
   const listRef = useRef<HTMLDivElement | null>(null)
 
+  const predictions = useMemo(() => {
+    const preds: Record<string, { home: number | null; away: number | null }> = {}
+    ;(Object.values(predictionsMap) as Prediction[]).forEach((p: Prediction) => {
+      preds[String(p.match_id)] = { home: p.predicted_home_score, away: p.predicted_away_score }
+    })
+    return preds
+  }, [predictionsMap])
+
   useEffect(() => {
     const timer = setInterval(() => setNow(getAppTime()), 60000)
     return () => clearInterval(timer)
   }, [])
-
-  useEffect(() => {
-    if (currentUserId) {
-      fetchData()
-    }
-  }, [currentUserId])
-
-  useEffect(() => {
-    if (!currentUserId) return
-
-    const matchesChannel = supabase
-      .channel('matches-realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'matches' },
-        (payload) => {
-          const newRow = payload.new as any
-          const oldRow = payload.old as any
-
-          const justFinished =
-            payload.eventType === 'UPDATE' &&
-            newRow?.is_finished === true &&
-            oldRow?.is_finished !== true
-
-          if (justFinished) {
-            void fetchData()
-            return
-          }
-
-          setMatches((prev) => {
-            if (payload.eventType === 'DELETE') {
-              return prev.filter((match) => String(match.match_id) !== String(oldRow?.match_id))
-            }
-
-            if (!newRow) return prev
-
-            const exists = prev.some((match) => String(match.match_id) === String(newRow.match_id))
-            if (!exists) {
-              return [...prev, newRow].sort((a, b) => getMatchTimestamp(a.kickoff_utc) - getMatchTimestamp(b.kickoff_utc))
-            }
-
-            return prev
-              .map((match) => (String(match.match_id) === String(newRow.match_id) ? { ...match, ...newRow } : match))
-              .sort((a, b) => getMatchTimestamp(a.kickoff_utc) - getMatchTimestamp(b.kickoff_utc))
-          })
-        }
-      )
-      .subscribe()
-
-    const standingsChannel = supabase
-      .channel('standings-realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'standings' },
-        (payload) => {
-          const newRow = payload.new as any
-          const oldRow = payload.old as any
-
-          setStandings((prev) => {
-            if (payload.eventType === 'DELETE') {
-              return prev.filter((standing) => String(standing.standing_id) !== String(oldRow?.standing_id))
-            }
-
-            if (!newRow) return prev
-
-            const exists = prev.some((standing) => String(standing.standing_id) === String(newRow.standing_id))
-            if (!exists) {
-              return [...prev, newRow]
-            }
-
-            return prev.map((standing) =>
-              String(standing.standing_id) === String(newRow.standing_id)
-                ? { ...standing, ...newRow }
-                : standing
-            )
-          })
-        }
-      )
-      .subscribe()
-
-    return () => {
-      void supabase.removeChannel(matchesChannel)
-      void supabase.removeChannel(standingsChannel)
-    }
-  }, [currentUserId])
 
   useEffect(() => {
     if (activeFilter !== "group") {
@@ -169,10 +129,10 @@ export function MatchesTab({ currentUserId, activeFilter, onFilterChange, active
     const nowDate = getAppTime()
     const todayKey = getLocalDayKey(nowDate.getTime())
     const tomorrowKey = getLocalDayKey(nowDate.getTime() + DAY_MS)
-    const todayIndex = matches.findIndex(m => getLocalDayKey(getMatchTimestamp(m.kickoff_utc)) === todayKey)
+    const todayIndex = matches.findIndex((m: Match) => getLocalDayKey(getMatchTimestamp(m.kickoff_utc || '')) === todayKey)
     let targetIndex = todayIndex
     if (targetIndex === -1) {
-      targetIndex = matches.findIndex(m => getMatchTimestamp(m.kickoff_utc) >= nowDate.getTime())
+      targetIndex = matches.findIndex((m: Match) => getMatchTimestamp(m.kickoff_utc || '') >= nowDate.getTime())
     }
     if (targetIndex === -1) targetIndex = 0
 
@@ -206,91 +166,31 @@ export function MatchesTab({ currentUserId, activeFilter, onFilterChange, active
     onFilterChange(filter)
   }
 
-  const fetchData = async () => {
-    setLoading(true)
-    try {
-      const { data: mData, error: mError } = await supabase
-        .from('matches')
-        .select('*')
-        .order('kickoff_utc', { ascending: true })
-
-      if (mError) throw mError
-
-      const { data: tData } = await supabase.from('teams').select('*')
-      const { data: sData } = await supabase.from('standings').select('*')
-
-      if (tData) setTeams(tData)
-      if (sData) setStandings(sData)
-
-      const { data: pData, error: pError } = await supabase
-        .from('predictions')
-        .select('match_id, predicted_home_score, predicted_away_score')
-        .eq('user_id', currentUserId)
-
-      if (pError) throw pError
-
-      const preds: Record<string, { home: number | null; away: number | null }> = {}
-      if (pData && Array.isArray(pData)) {
-        pData.forEach((r: any) => {
-          preds[String(r.match_id)] = { home: r?.predicted_home_score ?? null, away: r?.predicted_away_score ?? null }
-        })
-      }
-
-      setPredictions(preds)
-      if (mData) setMatches(mData)
-    } catch (err) {
-      console.error(err)
-      toast.error('Failed to load matches')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handlePredictionChange = async (matchId: string, home: number | null, away: number | null) => {
-    setSaving(prev => ({ ...prev, [matchId]: true }))
-    const match = matches.find(m => String(m.match_id) === String(matchId))
-
+  const handlePredictionChange = async (matchIdStr: string, home: number | null, away: number | null) => {
+    const matchId = parseInt(matchIdStr, 10)
+    setSaving(prev => ({ ...prev, [matchIdStr]: true }))
+    
     try {
       if (!currentUserId) {
         throw new Error('No active user')
       }
 
-      const last = lastSavedRef.current[matchId]
-      const payloadHome = home
-      const payloadAway = away
-
-      if ((payloadHome !== null && !Number.isInteger(payloadHome)) || (payloadAway !== null && !Number.isInteger(payloadAway)) || (payloadHome !== null && payloadHome < 0) || (payloadAway !== null && payloadAway < 0)) {
-        console.warn('Invalid prediction payload prevented', { matchId, payloadHome, payloadAway })
+      if ((home !== null && !Number.isInteger(home)) || (away !== null && !Number.isInteger(away)) || (home !== null && home < 0) || (away !== null && away < 0)) {
         toast.error('Invalid score value')
-        const lastSafe = lastSavedRef.current[matchId]
-        setPredictions(prev => ({ ...prev, [matchId]: lastSafe ?? { home: null, away: null } }))
         return
       }
 
-      // optimistic update: only set the provided values (null remains null -> empty input)
-      setPredictions(prev => ({ ...prev, [matchId]: { home: payloadHome, away: payloadAway } }))
-
-      const { error } = await supabase.rpc('save_prediction', {
-        p_user_id: currentUserId,
-        p_match_id: parseInt(matchId, 10),
-        p_home_score: payloadHome ?? undefined,
-        p_away_score: payloadAway ?? undefined,
-      })
-
-      if (error) throw error
-
-      // Mark as saved; allow lastSavedRef to hold nulls if they were explicitly cleared
+      await updatePrediction(matchId, home, away)
+      
       lastSavedRef.current = {
         ...lastSavedRef.current,
-        [matchId]: { home: payloadHome, away: payloadAway }
+        [matchIdStr]: { home, away }
       }
     } catch (err: any) {
       console.error('Save prediction error:', err)
       toast.error(err?.message || 'Failed to save prediction')
-      const last = lastSavedRef.current[matchId]
-      setPredictions(prev => ({ ...prev, [matchId]: last ?? { home: null, away: null } }))
     } finally {
-      setSaving(prev => ({ ...prev, [matchId]: false }))
+      setSaving(prev => ({ ...prev, [matchIdStr]: false }))
     }
   }
 
@@ -339,16 +239,27 @@ export function MatchesTab({ currentUserId, activeFilter, onFilterChange, active
     const { home_score: actH, away_score: actA } = match
     const { home: pHome, away: pAway } = prediction
     
-    if (actH === pHome && actA === pAway) return { amount: 3, type: "Exact Score" }
-    
+    if (actH === pHome && actA === pAway) return { amount: 5, type: "Exact Score" }
+
     const actualDiff = actH - actA
     const predDiff = pHome - pAway
-    if (Math.sign(actualDiff) === Math.sign(predDiff)) return { amount: 1, type: "Hit" }
-    
+    // same goal difference (but not exact) -> medium reward
+    if (actualDiff === predDiff) return { amount: 3, type: "Goal Difference" }
+    // same outcome (winner/draw) but different goal diff -> smaller reward
+    if (Math.sign(actualDiff) === Math.sign(predDiff)) return { amount: 2, type: "Outcome" }
+
     return { amount: 0, type: "pts" }
   }
 
-  const filteredMatches = matches.filter(m => {
+  const getClosesInText = (kickoffUtc?: string | null) => {
+    const diffMs = getMatchTimestamp(kickoffUtc) - now.getTime()
+    if (isNaN(diffMs) || diffMs <= 0 || diffMs > DAY_MS) return undefined
+    const hours = Math.floor(diffMs / (1000 * 60 * 60))
+    const mins = Math.floor((diffMs / (1000 * 60)) % 60)
+    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`
+  }
+
+  const filteredMatches = matches.filter((m: Match) => {
     if (activeGroup) return m.group === activeGroup || m.round === activeGroup
     
     const matchTimestamp = getMatchTimestamp(m.kickoff_utc)
@@ -368,40 +279,40 @@ export function MatchesTab({ currentUserId, activeFilter, onFilterChange, active
     return (
       <div className="flex flex-col items-center justify-center py-12">
         <Spinner className="w-8 h-8 text-primary mb-4" />
-        <p className="text-muted-foreground animate-pulse">Loading Matches...</p>
+        <p className="text-muted-foreground animate-pulse">{t("Loading Matches...")}</p>
       </div>
     )
   }
 
   if (activeFilter === "group" && !activeGroup) {
-    const groupsList = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"].map(letter => `Group ${letter}`)
+    const groupsList = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"].map(letter => `${t("Group")} ${letter}`)
     
     return (
       <div className="space-y-6 pt-28">
         <MatchFilters activeFilter={activeFilter} onFilterChange={handleFilterChange} />
         <div className="px-4 pb-24 grid grid-cols-2 gap-4">
           {groupsList.map(grpName => {
-            const groupKey = grpName.replace("Group ", "")
-            let groupTeams = teams.filter(t => {
+            const groupKey = grpName.replace(`${t("Group")} `, "")
+            let groupTeams = teams.filter((t: Team) => {
               // Support several possible stored formats: 'A', 'Group A', or full 'Group A'
               return t.group === groupKey || t.group === grpName || t.group === `Group ${groupKey}`
             })
             if (groupTeams.length === 0) {
-              groupTeams = [1,2,3,4].map(i => ({ abbreviation: `T${i}`, team_flag: undefined, team_name: `Team ${i}` }))
+              groupTeams = [1,2,3,4].map(i => ({ abbreviation: `T${i}`, team_flag: null, team_name: `Team ${i}`, team_id: i, group: null }))
             }
 
-            const teamStats = groupTeams.map(t => {
-              const st = standings.find(s => s.team_id === t.team_id)
+            const teamStats = groupTeams.map((t: Team) => {
+              const st = standings.find((s: Standing) => s.team_id === t.team_id)
               const raw = t.abbreviation || t.fifa_code || (t.team_name ? t.team_name.split(' ').map((w:any) => w[0]).join('').slice(0,3) : '')
               const abbr = String(raw).toUpperCase()
-              const flag = t.team_flag || mapFlag(abbr) || mapFlag(t.fifa_code) || '🏳️'
+              const flag = ((t.team_flag ?? undefined) || mapFlag(abbr ?? undefined) || mapFlag(t.fifa_code ?? undefined)) ?? '🏳️'
               return {
                 abbr,
                 flag,
                 pts: st?.points || 0,
                 gd: st?.goal_difference || 0
               }
-            }).sort((a,b) => b.pts - a.pts || b.gd - a.gd)
+            }).sort((a: any,b: any) => b.pts - a.pts || b.gd - a.gd)
 
             return (
               <div 
@@ -417,7 +328,7 @@ export function MatchesTab({ currentUserId, activeFilter, onFilterChange, active
                   </div>
                 </div>
                 <div className="space-y-1">
-                  {teamStats.map((ts, idx) => (
+                  {teamStats.map((ts: any, idx: number) => (
                           <div key={idx} className="flex justify-between items-center text-xs">
                             <div className="w-6 flex justify-center text-muted-foreground font-bold">{idx + 1}</div>
                             <div className="flex items-center gap-1.5 flex-1 min-w-0">
@@ -448,14 +359,14 @@ export function MatchesTab({ currentUserId, activeFilter, onFilterChange, active
             onClick={() => setActiveGroup(null)}
             className="mb-2 text-sm text-primary flex items-center gap-1 hover:underline"
           >
-            ← Groups
+            ← {t("Groups")}
           </button>
         )}
         {activeFilter === 'today' ? (() => {
           const todayKey = getLocalDayKey(now.getTime())
           const tomorrowKey = getLocalDayKey(now.getTime() + DAY_MS)
-          const todayMatches = filteredMatches.filter(m => getLocalDayKey(getMatchTimestamp(m.kickoff_utc)) === todayKey)
-          const tomorrowMatches = filteredMatches.filter(m => getLocalDayKey(getMatchTimestamp(m.kickoff_utc)) === tomorrowKey)
+          const todayMatches = filteredMatches.filter((m: Match) => getLocalDayKey(getMatchTimestamp(m.kickoff_utc)) === todayKey)
+          const tomorrowMatches = filteredMatches.filter((m: Match) => getLocalDayKey(getMatchTimestamp(m.kickoff_utc)) === tomorrowKey)
 
           const renderMatch = (m: any) => {
             const prediction = predictions[m.match_id]
@@ -470,8 +381,8 @@ export function MatchesTab({ currentUserId, activeFilter, onFilterChange, active
             }
 
             const matchTime = formatMatchTime(m.kickoff_utc)
-            const homeTeamObj = teams.find(t => t.team_id === m.home_team_id || t.abbreviation === m.home_team)
-            const awayTeamObj = teams.find(t => t.team_id === m.away_team_id || t.abbreviation === m.away_team)
+            const homeTeamObj = teams.find((t: Team) => t.team_id === m.home_team_id || t.abbreviation === m.home_team)
+            const awayTeamObj = teams.find((t: Team) => t.team_id === m.away_team_id || t.abbreviation === m.away_team)
 
             const deriveAbbr = (teamObj: any, fallbackName?: string) => {
               const raw = teamObj?.abbreviation || teamObj?.fifa_code || teamObj?.team_name || fallbackName
@@ -482,14 +393,15 @@ export function MatchesTab({ currentUserId, activeFilter, onFilterChange, active
               return String(raw).slice(0,3).toUpperCase()
             }
 
-            const homeCode = deriveAbbr(homeTeamObj, m.home_team) || (m.home_team_id?.toString() ?? 'H')
-            const awayCode = deriveAbbr(awayTeamObj, m.away_team) || (m.away_team_id?.toString() ?? 'A')
+            const homeCode = deriveAbbr(homeTeamObj, m.home_team ?? undefined) || (m.home_team_id?.toString() ?? 'H')
+            const awayCode = deriveAbbr(awayTeamObj, m.away_team ?? undefined) || (m.away_team_id?.toString() ?? 'A')
 
-            const homeFlag = m.home_flag || homeTeamObj?.team_flag || mapFlag(homeCode)
-            const awayFlag = m.away_flag || awayTeamObj?.team_flag || mapFlag(awayCode)
+              const homeFlag = ((m.home_flag ?? undefined) || homeTeamObj?.team_flag) ?? mapFlag(homeCode ?? undefined)
+              const awayFlag = ((m.away_flag ?? undefined) || awayTeamObj?.team_flag) ?? mapFlag(awayCode ?? undefined)
 
-            const savedPred = lastSavedRef.current[m.match_id]
-            const isSaved = !!(savedPred && savedPred.home !== null && savedPred.away !== null)
+            // Calculate the dynamic status hierarchy (Saved > Closes soon > Coming up)
+            const cardStatus = calculateStatus(m, prediction)
+            const isSaved = cardStatus === "Saved"
 
             return (
               <MatchCard
@@ -499,19 +411,21 @@ export function MatchesTab({ currentUserId, activeFilter, onFilterChange, active
                 awayTeam={{ code: awayCode, name: awayTeamObj?.team_name || m.away_team || 'TBD', flag: awayFlag }}
                 group={m.group || m.round || ''}
                 matchTime={matchTime}
-                status={m.status}
-                isCompleted={status === "Finished"}
-                isLive={status === "Live"}
+                status={status ?? undefined} // ⚡ Uses our updated status string variable
+                // ⚡ Dynamically fallback to true if database status indicates it is over
+                isCompleted={m.is_finished === true || m.status === "FT" || cardStatus === "Finished"}
+                isLive={["LIVE", "1H", "2H", "ET", "PEN"].includes((m.status ?? "").toUpperCase()) || cardStatus === "Live"}
                 isPredictionSaved={isSaved}
-                isToday={status === "Closes soon"}
+                isToday={cardStatus === "Closes soon"}
                 closesIn={closesIn}
+                // ⚡ This safely parses now that type Match has home_score and away_score!
                 finalScore={m.home_score !== null && m.away_score !== null ? { home: m.home_score, away: m.away_score } : undefined}
                 pointsEarned={getPointsEarned(m, prediction)}
                 controlledPrediction={prediction}
                 onPredictionChange={handlePredictionChange}
                 isSaving={!!saving[m.match_id]}
-                  activePoolId={activePoolId}
-                  currentUserId={currentUserId}
+                activePoolId={activePoolId}
+                currentUserId={currentUserId}
               />
             )
           }
@@ -521,7 +435,7 @@ export function MatchesTab({ currentUserId, activeFilter, onFilterChange, active
                   {todayMatches.length > 0 && (
                     <div className="mt-2 mb-2 flex items-center gap-3">
                       <div className="flex-1 h-px bg-border/40" />
-                      <div className="text-xs text-muted-foreground font-semibold">Today</div>
+                      <div className="text-xs text-muted-foreground font-semibold">{t("Today")}</div>
                       <div className="flex-1 h-px bg-border/40" />
                     </div>
                   )}
@@ -529,7 +443,7 @@ export function MatchesTab({ currentUserId, activeFilter, onFilterChange, active
                   {tomorrowMatches.length > 0 && (
                     <div className="mt-2 mb-2 flex items-center gap-3">
                       <div className="flex-1 h-px bg-border/40" />
-                      <div className="text-xs text-muted-foreground font-semibold">Tomorrow</div>
+                      <div className="text-xs text-muted-foreground font-semibold">{t("Tomorrow")}</div>
                       <div className="flex-1 h-px bg-border/40" />
                     </div>
                   )}
@@ -541,97 +455,56 @@ export function MatchesTab({ currentUserId, activeFilter, onFilterChange, active
             const todayKey = getLocalDayKey(now.getTime())
             const tomorrowKey = getLocalDayKey(now.getTime() + DAY_MS)
 
-            return filteredMatches.map((m, idx) => {
-              const matchDateStr = getLocalDayKey(getMatchTimestamp(m.kickoff_utc))
-              const prevDateStr = idx > 0 ? getLocalDayKey(getMatchTimestamp(filteredMatches[idx - 1].kickoff_utc)) : null
+            return filteredMatches.map((m) => {
+            const prediction = predictions[m.match_id]
 
-              const showTodaySep = matchDateStr === todayKey && prevDateStr !== todayKey
-              const showTomorrowSep = matchDateStr === tomorrowKey && prevDateStr !== tomorrowKey
-              const showDateSep = prevDateStr !== matchDateStr && !showTodaySep && !showTomorrowSep
+            const homeTeamObj = teams.find(t => t.team_id === m.home_team_id)
+            const awayTeamObj = teams.find(t => t.team_id === m.away_team_id)
 
-              const prediction = predictions[m.match_id]
-              const status = calculateStatus(m, prediction)
-              
-              let closesIn = undefined
-              if (status === "Closes soon") {
-                const diffMs = getMatchTimestamp(m.kickoff_utc) - now.getTime()
-                const hours = Math.floor(diffMs / (1000 * 60 * 60))
-                const mins = Math.floor((diffMs / (1000 * 60)) % 60)
-                closesIn = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`
-              }
+            const homeCode = homeTeamObj?.abbreviation || m.home_team || '???'
+            const awayCode = awayTeamObj?.abbreviation || m.away_team || '???'
+            const homeFlag = homeTeamObj?.team_flag || mapFlag(homeCode)
+            const awayFlag = awayTeamObj?.team_flag || mapFlag(awayCode)
 
-              const matchTime = formatMatchTime(m.kickoff_utc)
-              
-              const homeTeamObj = teams.find(t => t.team_id === m.home_team_id || t.abbreviation === m.home_team)
-              const awayTeamObj = teams.find(t => t.team_id === m.away_team_id || t.abbreviation === m.away_team)
+            // ADD these lines:
+            const matchTime = formatMatchTime(m.kickoff_utc)
+            const displayGroup = m.group || m.round || ''
+            
+            const cardStatus = calculateStatus(m, prediction)
+            const isSaved = cardStatus === "Saved"
+            const closesIn = cardStatus === "Closes soon" ? getClosesInText(m.kickoff_utc) : undefined
+            const status = m.status  // keep passing raw DB status for MatchCard's usesTimeBasedBadge
 
-              const deriveAbbr = (teamObj: any, fallbackName?: string) => {
-                const raw = teamObj?.abbreviation || teamObj?.fifa_code || teamObj?.team_name || fallbackName
-                if (!raw) return ''
-                if (raw.includes(' ')) {
-                  return raw.split(' ').map((w: string) => w[0]).join('').slice(0,3).toUpperCase()
-                }
-                return String(raw).slice(0,3).toUpperCase()
-              }
-
-              const homeCode = deriveAbbr(homeTeamObj, m.home_team) || (m.home_team_id?.toString() ?? 'H')
-              const awayCode = deriveAbbr(awayTeamObj, m.away_team) || (m.away_team_id?.toString() ?? 'A')
-
-              const homeFlag = m.home_flag || homeTeamObj?.team_flag || mapFlag(homeCode)
-              const awayFlag = m.away_flag || awayTeamObj?.team_flag || mapFlag(awayCode)
-
-              const savedPred = lastSavedRef.current[m.match_id]
-              const isSaved = !!(savedPred && savedPred.home !== null && savedPred.away !== null)
-
-              return (
-                <div key={m.match_id}>
-                  {showTodaySep && (
-                    <div className="mt-2 mb-2 flex items-center gap-3">
-                      <div className="flex-1 h-px bg-border/40" />
-                      <div className="text-xs text-muted-foreground font-semibold">Today</div>
-                      <div className="flex-1 h-px bg-border/40" />
-                    </div>
-                  )}
-                  {showTomorrowSep && (
-                    <div className="mt-2 mb-2 flex items-center gap-3">
-                      <div className="flex-1 h-px bg-border/40" />
-                      <div className="text-xs text-muted-foreground font-semibold">Tomorrow</div>
-                      <div className="flex-1 h-px bg-border/40" />
-                    </div>
-                  )}
-                  {showDateSep && (
-                    <div className="mt-2 mb-2">
-                      <div className="h-px bg-border/40" />
-                    </div>
-                  )}
-                  <MatchCard
-                    id={m.match_id.toString()}
-                    homeTeam={{ code: homeCode, name: homeTeamObj?.team_name || m.home_team || 'TBD', flag: homeFlag }}
-                    awayTeam={{ code: awayCode, name: awayTeamObj?.team_name || m.away_team || 'TBD', flag: awayFlag }}
-                    group={m.group || m.round || ''}
-                    matchTime={matchTime}
-                    status={m.status}
-                    isCompleted={status === "Finished"}
-                    isLive={status === "Live"}
-                    isPredictionSaved={isSaved}
-                    isToday={status === "Closes soon"}
-                    closesIn={closesIn}
-                    finalScore={m.home_score !== null && m.away_score !== null ? { home: m.home_score, away: m.away_score } : undefined}
-                    pointsEarned={getPointsEarned(m, prediction)}
-                    controlledPrediction={prediction}
-                    onPredictionChange={handlePredictionChange}
-                    isSaving={!!saving[m.match_id]}
-                    activePoolId={activePoolId}
-                    currentUserId={currentUserId}
-                  />
-                </div>
-              )
-            })
+            return (
+              <div key={m.match_id} className="relative">
+                <MatchCard
+                  id={m.match_id.toString()}
+                  homeTeam={{ code: homeCode, name: homeTeamObj?.team_name || m.home_team || 'TBD', flag: homeFlag }}
+                  awayTeam={{ code: awayCode, name: awayTeamObj?.team_name || m.away_team || 'TBD', flag: awayFlag }}
+                  group={displayGroup}
+                  matchTime={matchTime}
+                  status={status ?? undefined} // ⚡ Uses our updated status string variable
+                  isCompleted={status === "Finished"}
+                  isLive={status === "Live"}
+                  isPredictionSaved={isSaved}
+                  isToday={status === "Closes soon"}
+                  closesIn={closesIn}
+                  finalScore={m.home_score !== null && m.away_score !== null ? { home: m.home_score as number, away: m.away_score as number } : undefined}
+                  pointsEarned={getPointsEarned(m, prediction)}
+                  controlledPrediction={prediction}
+                  onPredictionChange={handlePredictionChange}
+                  isSaving={!!saving[m.match_id]}
+                  activePoolId={activePoolId}
+                  currentUserId={currentUserId}
+                />
+              </div>
+            )
+          })
           })()
         )}
         {filteredMatches.length === 0 && (
           <div className="text-center py-10">
-            <p className="text-muted-foreground">No matches today.</p>
+            <p className="text-muted-foreground">{t("No matches today.")}</p>
           </div>
         )}
       </div>

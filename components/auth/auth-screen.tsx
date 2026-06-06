@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
 import { Spinner } from "@/components/ui/spinner"
+import { useTournamentData } from "@/context/tournament-data-context"
 
 async function setCurrentUserSession(userId: number) {
   const { error } = await supabase.rpc("set_current_user_id", { uid: userId })
@@ -20,6 +21,7 @@ interface AuthScreenProps {
 }
 
 export function AuthScreen({ onSuccess }: AuthScreenProps) {
+  const { t } = useTournamentData()
   const [loading, setLoading] = useState(false)
   const [username, setUsername] = useState("")
   const [pin, setPin] = useState("")
@@ -43,7 +45,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
     const cleanUsername = username.trim().toUpperCase()
     const cleanPin = pin.trim()
     if (cleanUsername.length < 3) {
-      toast.error("Username must be at least 3 characters")
+      toast.error(t("Username must be at least 3 characters"))
       return
     }
     if (cleanPin.length !== 4) {
@@ -72,14 +74,14 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
         e?.code === "23505" || (e?.message ?? "").includes("users_username_key")
 
       if (isUniqueViolation) {
-        toast.error("Username already taken!", {
-          description: "Please choose a different username.",
+        toast.error(t("Username already taken!"), {
+          description: t("Please choose a different username."),
         })
         return
       }
 
-      toast.error("Signup failed", {
-        description: "Please try again.",
+      toast.error(t("Signup failed"), {
+        description: t("Please try again."),
       })
 
       console.error("custom_signup error:", e)
@@ -105,17 +107,17 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
         .limit(2)
 
       if (error) {
-        toast.error("Login failed")
+        toast.error(t("Login failed"))
         return
       }
 
       if (!data || data.length === 0) {
-        toast.error("Invalid username or PIN")
+        toast.error(t("Invalid username or PIN"))
         return
       }
 
       if (data.length > 1) {
-        toast.error("Multiple accounts match this username. Please contact support.")
+        toast.error(t("Multiple accounts match this username. Please contact support."))
         return
       }
       const matched = data[0]
@@ -123,9 +125,9 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
       await setCurrentUserSession(matched.user_id)
       onSuccess({ user_id: matched.user_id, username: matched.username })
     } catch (error: any) {
-      console.error("Login error:", error)
-      toast.error("Login failed", {
-        description: error?.message || "Please try again.",
+      console.error(t("Login error:"), error)
+      toast.error(t("Login failed"), {
+        description: error?.message || t("Please try again."),
       })
     } finally {
       setLoading(false)
@@ -146,14 +148,14 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
     <div className="flex flex-col items-center justify-center min-h-[70vh] px-4">
       <div className="w-full max-w-md space-y-6">
         <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold tracking-tighter text-primary">World Cup Predictor</h1>
-          <p className="text-muted-foreground">Predict the matches of the 2026 FIFA World Cup</p>
+          <h1 className="text-3xl font-bold tracking-tighter text-primary">{t("World Cup Predictor")}</h1>
+          <p className="text-muted-foreground">{t("Predict the matches of the 2026 FIFA World Cup")}</p>
         </div>
 
         <Tabs defaultValue="login" className="w-full">
           <TabsList className="grid w-full grid-cols-2 h-14 bg-secondary/30 p-1.5 rounded-2xl">
-            <TabsTrigger value="login" className="h-full rounded-xl font-bold uppercase tracking-wide text-xs">Log in</TabsTrigger>
-            <TabsTrigger value="register" className="h-full rounded-xl font-bold uppercase tracking-wide text-xs">Sign up</TabsTrigger>
+            <TabsTrigger value="login" className="h-full rounded-xl font-bold uppercase tracking-wide text-xs">{t("Log in")}</TabsTrigger>
+            <TabsTrigger value="register" className="h-full rounded-xl font-bold uppercase tracking-wide text-xs">{t("Sign up")}</TabsTrigger>
           </TabsList>
           
           <div className="min-h-[260px]">
@@ -162,7 +164,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                 <CardContent className="pt-1 pb-5 px-6">
                   <form className="space-y-3.5" onSubmit={handleLoginSubmit}>
                     <div className="space-y-1.5">
-                      <label className="text-sm font-bold text-muted-foreground uppercase tracking-widest ml-1">Username</label>
+                      <label className="text-sm font-bold text-muted-foreground uppercase tracking-widest ml-1">{t("Username")}</label>
                       <Input 
                         placeholder="M JACKSON" 
                         value={username}
@@ -172,7 +174,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                       />
                     </div>
                     <div className="space-y-1.5 flex flex-col items-center">
-                      <label className="text-sm font-bold text-muted-foreground uppercase tracking-widest ml-1 self-start">Passcode (4 digits)</label>
+                      <label className="text-sm font-bold text-muted-foreground uppercase tracking-widest ml-1 self-start">{t("PIN")}</label>
                       <Input 
                         ref={pinInputRef}
                         type="text"
@@ -198,7 +200,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                       disabled={loading}
                     >
                       {loading ? <Spinner className="w-4 h-4 mr-2" /> : null}
-                      Log in
+                      {t("Log in")}
                     </Button>
                   </form>
                 </CardContent>
@@ -210,7 +212,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                 <CardContent className="pt-1 pb-5 px-6">
                   <form className="space-y-3.5" onSubmit={handleRegisterSubmit}>
                     <div className="space-y-1.5">
-                      <label className="text-sm font-bold text-muted-foreground uppercase tracking-widest ml-1">Username</label>
+                      <label className="text-sm font-bold text-muted-foreground uppercase tracking-widest ml-1">{t("Username")}</label>
                       <Input 
                         placeholder="M JACKSON" 
                         value={username}
@@ -220,7 +222,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                       />
                     </div>
                     <div className="space-y-1.5 flex flex-col items-center">
-                      <label className="text-sm font-bold text-muted-foreground uppercase tracking-widest ml-1 self-start">Passcode (4 digits)</label>
+                      <label className="text-sm font-bold text-muted-foreground uppercase tracking-widest ml-1 self-start">{t("PIN")}</label>
                       <Input 
                         ref={pinInputRef}
                         type="text"
@@ -246,7 +248,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                       disabled={loading}
                     >
                       {loading ? <Spinner className="w-4 h-4 mr-2" /> : null}
-                      Create Account
+                      {t("Create Account")}
                     </Button>
                   </form>
                 </CardContent>

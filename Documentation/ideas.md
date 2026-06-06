@@ -152,39 +152,48 @@ Matches that user doesn't predict on time should store the 0:0 score so user has
 - 24. 
 
 PWA is still incomplete. There is still no manifest/service worker in the workspace, so install behavior and update caching are not ready.
+D
 
 - 25. 
 The invite/pool join flow is now implemented in the frontend, but it still depends on the current URL naming convention and DB join behavior being correct.
+D
 
 - 26.
 
 I could not find any custom_signup / custom_login RPC implementation in the workspace, so the RPC-based auth you mentioned is not wired up yet.
+D
 
 - 27. TEST WITH AI(playwright, browser use, momentic, qa wolf)
 
 - 28. Last gemini and copilot prompts: missing features and patches-->important one! Calculations are not done yet!
 
 Look at the ccodebas, read the md files and read the supabase sql ill paste below. based on these, tell me if the scoring system would work after the website goes live and the world cup starts. Would users see a reliable web app or un untrustable one? If there are misscalculations or unupdated data, or delays, or any issues, the app will no lose the trust of users and the user experience is dead. Give me a list of what has to be done towards the goal of the perfectly working web app. 
+D
 
 - 29. 
 
 when i delete predictions on coming up matches, it says match already started in a pop up error window. 
+D?
 
 - 30.
 
 when i change my predictions in the bonus tab before the torunament starts , it says saved on the card, yet if i reload the site it jumps back to my previous pred. also the golden boot leaderboards highlighted one doesnt update. the highlighted one should always be the player the user predicted for top dcorer. 
+D
 
 - 31.
 
 even if i have the top scorer selected predicted before tournament, if i go to my user profile in the rankings tab, it displays Not selected. 
+D
 
 - 32. 
 
 Add a back button for where its needed. first place is the pool page, user should be able to go back to auth. They can get stuck now. 
+D
 
 - 33. 
  
 cant see the scores users predicted when i click on a match tab that finished of is live. it should display the scores(home:away) every user predicted. 
+D
 
 - 34.
 
@@ -199,3 +208,7 @@ supabase gen types typescript --project-id qlnganxvaiuwsuohjwtp --schema public 
 
 Supabase
 FifaWC#2026
+
+
+- 36.
+Medium: the match UI can lag at kickoff because it derives live/open state from the server status plus a 60-second client timer. The status logic in matches-tab.tsx:299 and the deadline display in matches-tab.tsx:334 can leave a match looking editable or “Closes soon” a bit too long if the page stays open. The database still blocks late saves, so this is mostly a confusing UX/error path rather than score corruption.

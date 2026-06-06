@@ -12,6 +12,7 @@ import { getFlag } from "@/lib/flags"
 import { Spinner } from "@/components/ui/spinner"
 import { toast } from "sonner"
 import { useHistoryLayer } from "@/hooks/use-history-layer"
+import { useTournamentData } from "@/context/tournament-data-context"
 
 interface RankingsTabProps {
   poolId?: number
@@ -35,6 +36,7 @@ interface RankedUser {
 
 export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProps) {
   // Add a comment to trigger re-save
+  const { t } = useTournamentData()
   const [users, setUsers] = useState<RankedUser[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedPlayer, setSelectedPlayer] = useState<null | any>(null)
@@ -344,7 +346,7 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
     return (
       <div className="flex flex-col items-center justify-center py-12">
         <Spinner className="w-8 h-8 text-primary mb-4" />
-        <p className="text-muted-foreground animate-pulse">Loading Leaderboard...</p>
+        <p className="text-muted-foreground animate-pulse">{t("Loading Leaderboard...")}</p>
       </div>
     )
   }
@@ -353,17 +355,17 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
     <div className="space-y-4">
       <div className="px-1">
         <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-[0.2em]">
-          {poolName ? `${poolName.toUpperCase()} Leaderboard` : "Global Leaderboard"}
+          {poolName ? `${poolName.toUpperCase()} ${t("Leaderboard")}` : t("Global Leaderboard")}
         </h2>
       </div>
 
       {/* Table Header */}
-      <div className="grid grid-cols-[2.5rem_1fr_3rem_3rem_3.5rem] gap-2 px-3 py-2 text-[10px] text-muted-foreground font-bold uppercase tracking-widest border-b border-border/30">
+      <div className="grid grid-cols-[2.5rem_1fr_4rem_3rem_2rem] gap-2 px-3 py-2 text-[10px] text-muted-foreground font-bold uppercase tracking-widest border-b border-border/30">
         <span>#</span>
-        <span>User</span>
-        <span className="text-center">Pick</span>
-        <span className="text-center">Exact</span>
-        <span className="text-right">Pts</span>
+        <span>{t("User")}</span>
+        <span className="text-center">{t("Pick")}</span>
+        <span className="text-center">{t("Exact")}</span>
+        <span className="text-right">{t("Pts")}</span>
       </div>
 
       {/* Friend Rows */}
@@ -373,7 +375,7 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
             key={friend.id}
             onClick={() => openProfile(friend)}
             className={cn(
-              "relative grid grid-cols-[2.5rem_1fr_3rem_3rem_3.5rem] gap-2 items-center px-3 py-3 rounded-2xl bg-muted/25 border border-border/50 transition-all text-left w-full overflow-hidden",
+              "relative grid grid-cols-[2.5rem_1fr_4rem_3rem_2rem] gap-2 items-center px-3 py-3 rounded-2xl bg-muted/25 border border-border/50 transition-all text-left w-full overflow-hidden",
               "cursor-pointer hover:border-primary/30 active:scale-[0.98]",
               friend.isCurrentUser && "border-primary/50 bg-muted/35",
                 highlightId === friend.id && "ring-2 ring-primary/30 scale-[1.01]"
@@ -425,7 +427,7 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
         
         {users.length === 0 && (
           <div className="text-center py-10 bg-card/50 rounded-2xl border border-dashed border-border">
-            <p className="text-muted-foreground text-sm italic">No users in this pool yet.</p>
+            <p className="text-muted-foreground text-sm italic">{t("No users in this pool yet.")}</p>
           </div>
         )}
 
@@ -435,7 +437,7 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
             onClick={() => setShowInvite(true)}
             className="w-full mt-2 relative items-center px-3 py-3 rounded-2xl bg-card hover:bg-muted text-muted-foreground border border-border/60 text-center font-bold text-sm uppercase tracking-widest cursor-pointer transition-all active:scale-[0.98]"
           >
-            INVITE
+            {t("INVITE")}
           </button>
         )}
       </div>
@@ -444,8 +446,8 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
       <Dialog open={showInvite} onOpenChange={(open) => (open ? setShowInvite(true) : closeInvite())}>
         <DialogContent className="w-[calc(100%-32px)] max-w-sm rounded-2xl bg-card border-border/50 shadow-2xl p-6 mx-auto">
           <div className="text-center space-y-4">
-            <h3 className="text-lg font-bold text-foreground">Invite to <span className="text-primary">{poolName?.toUpperCase()}</span></h3>
-            <p className="text-sm text-muted-foreground">Share the link or scan the QR code for a quick join</p>
+            <h3 className="text-lg font-bold text-foreground">{t("Invite to")} <span className="text-primary">{poolName?.toUpperCase()}</span></h3>
+            <p className="text-sm text-muted-foreground">{t("Share the link or scan the QR code for a quick join")}</p>
 
             <div className="flex items-center gap-2 mt-2 w-full">
               <input
@@ -460,7 +462,7 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
                 onClick={copyInvite}
                 className="shrink-0 px-3 py-2 bg-muted/20 text-sm rounded-xl border border-border/30 font-bold text-muted-foreground"
               >
-                Copy
+                {t("Copy")}
               </button>
             </div>
 
@@ -487,7 +489,12 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
         {selectedPlayer && (
           <DialogContent className="w-[calc(100%-32px)] max-w-md p-0 overflow-hidden border-none bg-transparent shadow-none [&>button]:hidden mx-auto">
             <div className="max-h-[85vh] overflow-y-auto pr-1">
-              <ProfileTab {...toProfileProps(selectedPlayer)} onNavigateToRankings={closeSelectedPlayer} isPublicView={true} />
+              <ProfileTab 
+                {...toProfileProps(selectedPlayer)} 
+                onNavigateToRankings={closeSelectedPlayer} 
+                isPublicView={true} 
+                hideLanguageToggle={true} // ⚡ Add this flag here
+              />
               
               <button 
                 onClick={closeSelectedPlayer}

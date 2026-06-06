@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
 import { Spinner } from "@/components/ui/spinner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useTournamentData } from '@/context/tournament-data-context'
 
 interface UserPool {
   pool_id: number
@@ -25,6 +26,9 @@ interface PoolsScreenProps {
 }
 
 export function PoolsScreen({ userId, onJoined, initialPoolName, onBack }: PoolsScreenProps) {
+  // ⚡ 1. GLOBAL HOOK INITIALIZATION (Called safely and unconditionally at the top)
+  const { refreshData, setActivePool } = useTournamentData()
+  const { t } = useTournamentData()
   const [loading, setLoading] = useState(false)
   const [poolName, setPoolName] = useState("")
   const [joinPoolName, setJoinPoolName] = useState("")
@@ -72,7 +76,7 @@ export function PoolsScreen({ userId, onJoined, initialPoolName, onBack }: Pools
   const handleCreatePool = async () => {
     const normalizedPoolName = poolName.trim().toUpperCase()
     if (!normalizedPoolName || normalizedPoolName.length < 3) {
-      toast.error("Pool name must be at least 3 characters")
+      toast.error(t("Pool name must be at least 3 characters"))
       return
     }
 
@@ -87,10 +91,20 @@ export function PoolsScreen({ userId, onJoined, initialPoolName, onBack }: Pools
 
       if (poolError) throw poolError
 
-      toast.success(`Pool "${pool.pool_name.toUpperCase()}" created.`)
+      toast.success(t(`Pool "${pool.pool_name.toUpperCase()}" created.`))
+      
+      try {
+        localStorage.setItem(`wc2026_active_pool_id_${userId}`, String(pool.pool_id))
+      } catch (e) {
+        // ignore
+      }
+
+      // ⚡ 2. Safely call the context actions extracted from the top
+      setActivePool(pool.pool_id)
       onJoined(pool.pool_id)
+      await refreshData()
     } catch (error: any) {
-      toast.error(error.message || "Failed to create pool")
+      toast.error(t(error.message || "Failed to create pool"))
     } finally {
       setLoading(false)
     }
@@ -99,7 +113,7 @@ export function PoolsScreen({ userId, onJoined, initialPoolName, onBack }: Pools
   const handleJoinPool = async () => {
     const normalizedPoolName = joinPoolName.trim().toUpperCase()
     if (!normalizedPoolName) {
-      toast.error("Please enter the pool name")
+      toast.error(t("Please enter the pool name"))
       return
     }
 
@@ -114,25 +128,37 @@ export function PoolsScreen({ userId, onJoined, initialPoolName, onBack }: Pools
 
       if (joinError) {
         if (joinError.code === "23505") {
-          toast.error("You are already in this pool")
+          toast.error(t("You are already in this pool"))
         } else {
           throw joinError
         }
         return
       }
 
-      toast.success(`Joined ${pool.pool_name.toUpperCase()}!`)
+      toast.success(t("Joined pool successfully!"))
+      
+      try {
+        localStorage.setItem(`wc2026_active_pool_id_${userId}`, String(pool.pool_id))
+      } catch (e) {
+        // ignore
+      }
+
+      // ⚡ 3. Safely call the context actions extracted from the top
+      setActivePool(pool.pool_id)
       onJoined(pool.pool_id)
+      await refreshData()
     } catch (error: any) {
-      toast.error(error.message || "Failed to join pool")
+      toast.error(t(error.message || "Failed to join pool"))
     } finally {
       setLoading(false)
     }
   }
 
+  // ... (Leave the remaining return statement code underneath completely untouched)
+
   return (
     <div className="flex flex-col min-h-screen px-4 py-4">
-      <div className="w-full max-w-md mx-auto space-y-4">
+      <div className="w-full max-w-md mx-auto space-y-2">
         <div className="relative flex items-center pt-1 min-h-10">
           <button
             type="button"
@@ -141,11 +167,11 @@ export function PoolsScreen({ userId, onJoined, initialPoolName, onBack }: Pools
             aria-label="Back to auth"
           >
             <ArrowLeft className="w-4 h-4" />
-            Back
+            {t("Back")}
           </button>
 
           <h1 className="absolute left-1/2 -translate-x-1/2 text-3xl font-bold tracking-tighter text-primary">
-            Pools
+            {t("Pools")}
           </h1>
         </div>
 
@@ -161,7 +187,7 @@ export function PoolsScreen({ userId, onJoined, initialPoolName, onBack }: Pools
                 >
                   <span className="text-sm font-semibold tracking-wide text-muted-foreground">{pool.pool_name.toUpperCase()}</span>
                   <span className="bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-                    Enter →
+                    {t("Enter →")}
                   </span>
                 </Button>
               ))}
@@ -169,17 +195,17 @@ export function PoolsScreen({ userId, onJoined, initialPoolName, onBack }: Pools
           </div>
         )}
 
-        <Tabs defaultValue="join" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 h-14 bg-secondary/30 p-1.5 rounded-2xl">
-            <TabsTrigger value="join" className="h-full rounded-xl font-bold uppercase tracking-wide text-xs">Join Pool</TabsTrigger>
-            <TabsTrigger value="create" className="h-full rounded-xl font-bold uppercase tracking-wide text-xs">Create Pool</TabsTrigger>
+        <Tabs defaultValue="join" className="w-full mt-12">
+          <TabsList className="grid w-full grid-cols-2 h-14 bg-secondary/30 p-1.5 rounded-2xl mb-0">
+            <TabsTrigger value="join" className="h-full rounded-xl font-bold uppercase tracking-wide text-xs">{t("Join Pool")}</TabsTrigger>
+            <TabsTrigger value="create" className="h-full rounded-xl font-bold uppercase tracking-wide text-xs">{t("Create Pool")}</TabsTrigger>
           </TabsList>
-          <div className="min-h-[300px]">
-            <TabsContent value="join" className="mt-6 focus-visible:outline-none">
+            <div className="min-h-[300px]">
+            <TabsContent value="join" className="mt-2 focus-visible:outline-none">
               <Card className="border-border/40 shadow-xl shadow-black/20 bg-card/80 backdrop-blur-sm rounded-3xl overflow-hidden">
                 <CardContent className="space-y-3.5 pt-5 pb-5 px-6">
                   <div className="space-y-1">
-                    <label className="mb-3 block text-sm font-bold text-muted-foreground uppercase tracking-widest ml-1">Pool Name</label>
+                    <label className="mb-3 block text-sm font-bold text-muted-foreground uppercase tracking-widest ml-1">{t("Pool Name")}</label>
                     <Input 
                       placeholder="FOOTBALLBOYS" 
                       value={joinPoolName}
@@ -193,17 +219,17 @@ export function PoolsScreen({ userId, onJoined, initialPoolName, onBack }: Pools
                     disabled={loading}
                   >
                     {loading ? <Spinner className="w-4 h-4 mr-2" /> : null}
-                    Join Pool
+                    {t("Join Pool")}
                   </Button>
                 </CardContent>
               </Card>
             </TabsContent>
 
-            <TabsContent value="create" className="mt-6 focus-visible:outline-none">
+            <TabsContent value="create" className="mt-2 focus-visible:outline-none">
               <Card className="border-border/40 shadow-xl shadow-black/20 bg-card/80 backdrop-blur-sm rounded-3xl overflow-hidden">
                 <CardContent className="space-y-3.5 pt-5 pb-5 px-6">
                   <div className="space-y-1">
-                    <label className="mb-3 block text-sm font-bold text-muted-foreground uppercase tracking-widest ml-1">Pool Name</label>
+                    <label className="mb-3 block text-sm font-bold text-muted-foreground uppercase tracking-widest ml-1">{t("Pool Name")}</label>
                     <Input 
                       placeholder="FOOTBALLBOYS" 
                       value={poolName}
@@ -217,7 +243,7 @@ export function PoolsScreen({ userId, onJoined, initialPoolName, onBack }: Pools
                     disabled={loading}
                   >
                     {loading ? <Spinner className="w-4 h-4 mr-2" /> : null}
-                    Create Pool
+                    {t("Create Pool")}
                   </Button>
                 </CardContent>
               </Card>

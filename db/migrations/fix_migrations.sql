@@ -391,7 +391,7 @@ BEGIN
     INSERT INTO public.user_points_events
       (user_id, match_id, event_type, points_delta, reason)
     VALUES (v_rec.user_id, NULL, 'tournament_winner', 10, 'Correct tournament winner pick')
-    ON CONFLICT (user_id, match_id, event_type) DO NOTHING;
+    ON CONFLICT (user_id, event_type) WHERE match_id IS NULL DO NOTHING;
 
     IF FOUND THEN
       UPDATE public.users
@@ -409,7 +409,7 @@ BEGIN
     INSERT INTO public.user_points_events
       (user_id, match_id, event_type, points_delta, reason)
     VALUES (v_rec.user_id, NULL, 'top_scorer', 10, 'Correct top scorer pick')
-    ON CONFLICT (user_id, match_id, event_type) DO NOTHING;
+    ON CONFLICT (user_id, event_type) WHERE match_id IS NULL DO NOTHING;
 
     IF FOUND THEN
       UPDATE public.users
