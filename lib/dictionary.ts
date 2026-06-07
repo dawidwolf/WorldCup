@@ -40,6 +40,7 @@ const en: Dictionary = {
   "Failed to create pool": "Failed to create pool",
   "Failed to join pool": "Failed to join pool",
   "Joined pool successfully!": "Joined pool successfully!",
+  "Pool created:": "Pool created:",
 
   // ── BOTTOM NAV ────────────────────────────────────────────
   "Matches": "Matches",
@@ -73,11 +74,12 @@ const en: Dictionary = {
   "Saved": "Saved",
   "Closes soon": "Closes soon",
   "Coming up": "Coming up",
+  "Group": "Group",
 
   // ── MATCH CARD — prediction text ──────────────────────────
   "No prediction submitted.": "No prediction submitted.",
   "You predicted: ": "You predicted: ",
-  "Tap to see predictions.": "Tap to see predictions.",
+  "Tap to see predictions": "Tap to see predictions",
 
   // ── MATCH CARD — points badges ────────────────────────────
   "pts": "pts",
@@ -124,6 +126,7 @@ const en: Dictionary = {
   "Your Scorer": "Your Scorer",
   "Scorer": "Scorer",
   "Not selected": "Not selected",
+  "Invite QR code": "Invite QR code",
 
   // ── PROFILE TAB — stats card ──────────────────────────────
   "Stats": "Stats",
@@ -133,7 +136,7 @@ const en: Dictionary = {
 
   // ── PROFILE TAB — pools card ──────────────────────────────
   "Your Pools": "Your Pools",
-  "Switch Pool →": "Switch Pool →",
+  "Switch Pool": "Switch Pool",
   "Admin": "Admin",
   "Invite": "Invite",
   "Leave": "Leave",
@@ -200,13 +203,13 @@ const en: Dictionary = {
 const hu: Dictionary = {
 
   // ── AUTH SCREEN ───────────────────────────────────────────
-  "World Cup Predictor": "VB Tippelősdi",
+  "World Cup Predictor": "VB Tippverseny",
   "Predict the matches of the 2026 FIFA World Cup": "Tippelj a 2026-os FIFA Világbajnokság meccseire!",
   "Log in": "Belépés",
   "Sign up": "Regisztráció",
   "Username": "Felhasználónév",
   "PIN": "PIN-kód",
-  "Create Account": "Fiók létrehozása",
+  "Create Account": "Regisztrálás",
 
   // ── AUTH — error toasts ───────────────────────────────────
   "Username must be at least 3 characters": "A felhasználónévnek legalább 3 karakter hosszúnak kell lennie",
@@ -233,6 +236,7 @@ const hu: Dictionary = {
   "Failed to create pool": "Nem sikerült létrehozni a csoportot",
   "Failed to join pool": "Nem sikerült csatlakozni a csoporthoz",
   "Joined pool successfully!": "Sikeresen csatlakoztál a csoporthoz!",
+  "Pool created:": "Csoport létrehozva:",
 
   // ── BOTTOM NAV ────────────────────────────────────────────
   "Matches": "Meccsek",
@@ -242,7 +246,7 @@ const hu: Dictionary = {
 
   // ── MATCH FILTERS ─────────────────────────────────────────
   "All Matches": "Összes",
-  "Today": "Mai",
+  "Today": "Ma",
   "Groups": "Csoportok",
   "Knockouts": "Kieséses",
 
@@ -251,8 +255,7 @@ const hu: Dictionary = {
 
   // ── MATCHES TAB — loading / empty ─────────────────────────
   "Loading Matches...": "Meccsek betöltése...",
-  "No matches today.": "Ma nincs meccs.",
-  "← Groups": "← Csoportok",
+  "No matches today.": "Ma nincsenek meccsek.",
 
   // ── MATCHES TAB — group table headers ─────────────────────
   "GD": "GK",
@@ -261,20 +264,25 @@ const hu: Dictionary = {
   // ── MATCH CARD — status badges ────────────────────────────
   "Saving...": "Mentés...",
   "Postponed": "Elhalasztva",
-  "Finished": "Véget ért",
+  "Finished": "Vége",
   "Live": "Élő",
   "Saved": "Mentve",
   "Closes soon": "Hamarosan lezárul",
-  "Coming up": "Hamarosan",
+  "Coming up": "Közelgő",
+  "Group": "Csoport",
 
   // ── MATCH CARD — prediction text ──────────────────────────
   "No prediction submitted.": "Még nem tippeltél.",
   "You predicted: ": "A tipped: ",
-  "Tap to see predictions.": "Kattints a tippek megtekintéséhez.",
+  "Tap to see predictions": "Kattints a tippek megtekintéséhez",
 
   // ── MATCH CARD — points badges ────────────────────────────
   "pts": "pont",
   "0 pts": "0 pont",
+  "2 pts": "2 pont",
+  "3 pts": "3 pont",
+  "5 pts": "5 pont",
+  "10 pts": "10 pont",
 
   // ── BONUS TAB ─────────────────────────────────────────────
   "Predict Winner": "Győztes csapat",
@@ -291,11 +299,11 @@ const hu: Dictionary = {
   // ── RANKINGS TAB ─────────────────────────────────────────
   "Loading Leaderboard...": "Ranglista betöltése...",
   "Leaderboard": "Ranglista",
-  "Global Leaderboard": "Ranglista",
+  "Global Leaderboard": "Globális Ranglista",
   "#": "#",
   "User": "Név",
   "Pick": "Bajnok",
-  "Exact": "Teli T.",
+  "Exact": "Teli",
   "Pts": "Pont",
   "(You)": "(Te)",
   "No users in this pool yet.": "Még nincs senki ebben a csoportban.",
@@ -317,6 +325,7 @@ const hu: Dictionary = {
   "Your Scorer": "A tippelt gólkirályod",
   "Scorer": "Gólkirály",
   "Not selected": "Nincs kiválasztva",
+  "Invite QR code": "Meghívó QR-kód",
 
   // ── PROFILE TAB — stats card ──────────────────────────────
   "Stats": "Statisztikák",
@@ -326,7 +335,7 @@ const hu: Dictionary = {
 
   // ── PROFILE TAB — pools card ──────────────────────────────
   "Your Pools": "Csoportjaid",
-  "Switch Pool →": "Csoportváltás →",
+  "Switch Pool": "Csoportváltás",
   "Admin": "Admin",
   "Invite": "Meghívás",
   "Leave": "Kilépés",
@@ -368,9 +377,6 @@ const hu: Dictionary = {
   // ── PREDICTIONS MODAL ─────────────────────────────────────
   "Predictions": "Tippek",
   "No predictions": "Nincsenek tippek",
-  "5 pts": "5 pont",
-  "3 pts": "3 pont",
-  "2 pts": "2 pont",
 
   // ── PAGE — loading / session ──────────────────────────────
   "Restoring session...": "Belépés visszaállítása...",

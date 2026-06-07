@@ -326,7 +326,7 @@ export function MatchCard({
 
                 const ph = predHome ?? 0
                 const pa = predAway ?? 0
-                return t(`You predicted: ${ph}:${pa}.`)
+                return `${t("You predicted: ")}${ph}:${pa}.`
               })()}
               <span className={cn(
                 "ml-1",

@@ -49,6 +49,46 @@ type Standing = {
   goal_difference?: number
 }
 
+// FIFA 2026 World Cup group seeding order (position within each group, 1-indexed)
+// Edit any team's position here if you want to reorder them manually.
+const GROUP_SEEDING: Record<string, number> = {
+  // Group A
+  MEX: 1, RSA: 2, KOR: 3, CZE: 4,
+
+  // Group B
+  CAN: 1, BIH: 2, QAT: 3, SUI: 4,
+
+  // Group C
+  BRA: 1, MAR: 2, HAI: 3, SCO: 4,
+
+  // Group D
+  USA: 1, PAR: 2, AUS: 3, TUR: 4,
+
+  // Group E
+  GER: 1, CUW: 2, CIV: 3, ECU: 4,
+
+  // Group F
+  NED: 1, JPN: 2, SWE: 3, TUN: 4,
+
+  // Group G
+  BEL: 1, EGY: 2, IRN: 3, NZL: 4,
+
+  // Group H
+  ESP: 1, CPV: 2, KSA: 3, URU: 4,
+
+  // Group I
+  FRA: 1, SEN: 2, IRQ: 3, NOR: 4,
+
+  // Group J
+  ARG: 1, ALG: 2, AUT: 3, JOR: 4,
+
+  // Group K
+  POR: 1, COD: 2, UZB: 3, COL: 4,
+
+  // Group L
+  ENG: 1, CRO: 2, GHA: 3, PAN: 4,
+};
+
 const DAY_MS = 24 * 60 * 60 * 1000
 const MATCH_LENGTH_MS = 105 * 60 * 1000
 const LOCAL_DAY_FORMATTER = new Intl.DateTimeFormat('en-US', {
@@ -90,7 +130,7 @@ const getFlag = (code: string) => {
   const flags: Record<string, string> = {
     BRA: "đź‡§đź‡·", GER: "đź‡©đź‡Ş", ARG: "đź‡¦đź‡·", FRA: "đź‡«đź‡·", ESP: "đź‡Şđź‡¸", ENG: "đźŹ´ó §ó ˘ó Ąó ®ó §ó ż", 
     POR: "đź‡µđź‡ą", NED: "đź‡łđź‡±", ITA: "đź‡®đź‡ą", BEL: "đź‡§đź‡Ş", CRO: "đź‡­đź‡·", MAR: "đź‡˛đź‡¦", 
-    JPN: "đź‡Żđź‡µ", KOR: "đź‡°đź‡·", USA: "đź‡şđź‡¸", MEX: "đź‡˛đź‡˝", CAN: "đź‡¨đź‡¦"
+    JPN: "đź‡Żđź‡µ", KOR: "đź‡°đź‡·", USA: "đź‡şđź‡¸", MEX: "đź‡˛đź‡˝", CAN: "đź‡¨đź‡¦", SCO: "🏴󠁧󠁢󠁳󠁣󠁴󠁿",
   }
   return flags[code] || "đźŹłď¸Ź"
 }
@@ -103,6 +143,15 @@ export function MatchesTab({ currentUserId, activeFilter, onFilterChange, active
   const [saving, setSaving] = useState<Record<string, boolean>>({})
   const lastSavedRef = useRef<Record<string, { home: number | null; away: number | null }>>({})
   const listRef = useRef<HTMLDivElement | null>(null)
+
+  const translateGroup = (raw: string | null | undefined): string => {
+  if (!raw) return ''
+  const match = raw.match(/^Group\s+([A-Z]+)$/i)
+  if (!match) return raw
+  const letter = match[1].toUpperCase()
+  const word = t("Group")
+  return word === "Group" ? `${word} ${letter}` : `${letter} ${word}`
+  }
 
   const predictions = useMemo(() => {
     const preds: Record<string, { home: number | null; away: number | null }> = {}
@@ -260,7 +309,12 @@ export function MatchesTab({ currentUserId, activeFilter, onFilterChange, active
   }
 
   const filteredMatches = matches.filter((m: Match) => {
-    if (activeGroup) return m.group === activeGroup || m.round === activeGroup
+    if (activeGroup) return (
+  m.group === activeGroup ||
+  m.group === `Group ${activeGroup}` ||
+  m.round === activeGroup ||
+  m.round === `Group ${activeGroup}`
+  )
     
     const matchTimestamp = getMatchTimestamp(m.kickoff_utc)
     const nowTimestamp = now.getTime()
@@ -285,14 +339,15 @@ export function MatchesTab({ currentUserId, activeFilter, onFilterChange, active
   }
 
   if (activeFilter === "group" && !activeGroup) {
-    const groupsList = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"].map(letter => `${t("Group")} ${letter}`)
+    const groupLetters = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"]
     
     return (
       <div className="space-y-6 pt-28">
         <MatchFilters activeFilter={activeFilter} onFilterChange={handleFilterChange} />
         <div className="px-4 pb-24 grid grid-cols-2 gap-4">
-          {groupsList.map(grpName => {
-            const groupKey = grpName.replace(`${t("Group")} `, "")
+          {groupLetters.map(letter => {
+            const groupKey = letter
+            const grpName = translateGroup(`Group ${letter}`)
             let groupTeams = teams.filter((t: Team) => {
               // Support several possible stored formats: 'A', 'Group A', or full 'Group A'
               return t.group === groupKey || t.group === grpName || t.group === `Group ${groupKey}`
@@ -312,16 +367,25 @@ export function MatchesTab({ currentUserId, activeFilter, onFilterChange, active
                 pts: st?.points || 0,
                 gd: st?.goal_difference || 0
               }
-            }).sort((a: any,b: any) => b.pts - a.pts || b.gd - a.gd)
+            }).sort((a: any, b: any) => {
+                // During tournament: sort by points, then goal difference
+                if (a.pts !== 0 || b.pts !== 0) {
+                  return b.pts - a.pts || b.gd - a.gd
+                }
+                // Before tournament: fall back to FIFA seeding order
+                const seedA = GROUP_SEEDING[a.abbr] ?? 99
+                const seedB = GROUP_SEEDING[b.abbr] ?? 99
+                return seedA - seedB
+              })
 
             return (
               <div 
                   key={grpName} 
-                  onClick={() => { setActiveGroup(grpName); window.scrollTo({ top: 0, behavior: 'auto' }); }}
+                  onClick={() => { setActiveGroup(groupKey); window.scrollTo({ top: 0, behavior: 'auto' }); }}
                   className="bg-card border border-border/50 rounded-xl p-3 shadow-sm cursor-pointer hover:bg-muted/50 transition-colors"
                 >
                 <div className="flex justify-between items-center mb-2 border-b border-border/50 pb-1">
-                  <span className="font-bold text-foreground text-sm">{grpName.replace("Group ", "")}</span>
+                  <span className="font-bold text-foreground text-sm">{grpName}</span>
                   <div className="flex gap-2 text-[10px] text-muted-foreground w-12 justify-end">
                     <span className="w-5 text-center">GD</span>
                     <span className="w-5 text-center">PTS</span>
@@ -409,7 +473,7 @@ export function MatchesTab({ currentUserId, activeFilter, onFilterChange, active
                 id={m.match_id.toString()}
                 homeTeam={{ code: homeCode, name: homeTeamObj?.team_name || m.home_team || 'TBD', flag: homeFlag }}
                 awayTeam={{ code: awayCode, name: awayTeamObj?.team_name || m.away_team || 'TBD', flag: awayFlag }}
-                group={m.group || m.round || ''}
+                group={translateGroup(m.group) || m.round || ''}
                 matchTime={matchTime}
                 status={status ?? undefined} // ⚡ Uses our updated status string variable
                 // ⚡ Dynamically fallback to true if database status indicates it is over
@@ -481,7 +545,7 @@ export function MatchesTab({ currentUserId, activeFilter, onFilterChange, active
                   id={m.match_id.toString()}
                   homeTeam={{ code: homeCode, name: homeTeamObj?.team_name || m.home_team || 'TBD', flag: homeFlag }}
                   awayTeam={{ code: awayCode, name: awayTeamObj?.team_name || m.away_team || 'TBD', flag: awayFlag }}
-                  group={displayGroup}
+                  group={translateGroup(m.group) || m.round || ''}
                   matchTime={matchTime}
                   status={status ?? undefined} // ⚡ Uses our updated status string variable
                   isCompleted={status === "Finished"}

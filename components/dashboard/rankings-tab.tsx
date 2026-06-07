@@ -402,7 +402,7 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
                 )}
               >
                 {friend.name.toUpperCase()}
-                {friend.isCurrentUser && " (You)"}
+                {friend.isCurrentUser && " " + t("(You)")}
               </span>
             </div>
 
@@ -469,7 +469,7 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
             <div className="flex justify-center py-4 mx-auto w-fit">
               <img
                 src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&color=0-0-0&bgcolor=255-255-255&data=${encodeURIComponent(getInviteUrl())}`}
-                alt="QR Code"
+                alt={t("Invite QR code")}
                 className="w-[220px] h-[220px]"
               />
             </div>
@@ -478,7 +478,7 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
               onClick={closeInvite}
               className="w-full bg-card hover:bg-muted text-muted-foreground py-3 rounded-xl font-bold uppercase tracking-widest transition-all border border-border/50 shadow-sm active:scale-[0.98]"
             >
-              Close
+              {t("Close")}
             </button>
           </div>
         </DialogContent>
@@ -500,7 +500,7 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
                 onClick={closeSelectedPlayer}
                 className="w-full mt-4 bg-card hover:bg-muted text-muted-foreground py-4 rounded-2xl font-bold uppercase tracking-widest transition-all border border-red-500/40 shadow-xl active:scale-[0.98]"
               >
-                Close
+                {t("Close")}
               </button>
             </div>
           </DialogContent>

@@ -91,7 +91,7 @@ export function PoolsScreen({ userId, onJoined, initialPoolName, onBack }: Pools
 
       if (poolError) throw poolError
 
-      toast.success(t(`Pool "${pool.pool_name.toUpperCase()}" created.`))
+      toast.success(`${t("Pool created:")} ${pool.pool_name.toUpperCase()}`)
       
       try {
         localStorage.setItem(`wc2026_active_pool_id_${userId}`, String(pool.pool_id))

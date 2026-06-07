@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { createPortal } from "react-dom"
 import { supabase } from "@/lib/supabase"
 import { Spinner } from "@/components/ui/spinner"
+import { useTournamentData } from "@/context/tournament-data-context"
 
 interface PredictionRow {
   user_id: number
@@ -28,6 +29,7 @@ interface Props {
 }
 
 export default function MatchPredictionsModal({ matchId, isOpen, onClose, activePoolId, currentUserId, isLive }: Props) {
+  const { t } = useTournamentData()
   const [predictions, setPredictions] = useState<PredictionRow[]>([])
   const [loading, setLoading] = useState(false)
   const [matchInfo, setMatchInfo] = useState<any | null>(null)
@@ -213,27 +215,27 @@ export default function MatchPredictionsModal({ matchId, isOpen, onClose, active
     if (amount === 5) {
       return (
         <span className="ml-2 inline-flex items-center text-xs font-medium px-3 py-1 rounded-full bg-emerald-600 text-white">
-          5 pts
+          {t("5 pts")}
         </span>
       )
     }
     if (amount === 3) {
       return (
         <span className="ml-2 inline-flex items-center text-xs font-medium px-3 py-1 rounded-full bg-blue-600 text-white">
-          3 pts
+          {t("3 pts")}
         </span>
       )
     }
     if (amount === 2) {
       return (
         <span className="ml-2 inline-flex items-center text-xs font-medium px-3 py-1 rounded-full border border-emerald-500 text-emerald-500 bg-transparent">
-          2 pts
+          {t("2 pts")}
         </span>
       )
     }
     return (
       <span className="ml-2 inline-flex items-center text-xs font-medium px-3 py-1 rounded-full bg-muted text-muted-foreground">
-        0 pts
+        {t("0 pts")}
       </span>
     )
   }
@@ -253,7 +255,7 @@ export default function MatchPredictionsModal({ matchId, isOpen, onClose, active
         className="relative w-full sm:max-w-md max-w-lg mx-auto rounded-2xl overflow-hidden bg-card border border-border/40 z-20 pointer-events-auto shadow-xl"
       >
         <header className="px-4 pt-4 pb-2 border-b border-border/30">
-          <h3 className="text-sm font-bold text-foreground">Predictions</h3>
+          <h3 className="text-sm font-bold text-foreground">{t("Predictions")}</h3>
         </header>
 
         <div className="max-h-[70vh] overflow-y-auto px-2 py-3">
@@ -261,7 +263,7 @@ export default function MatchPredictionsModal({ matchId, isOpen, onClose, active
             <div className="flex items-center justify-center py-8"><Spinner className="w-8 h-8 text-primary" /></div>
           ) : predictions.length === 0 ? (
             <div className="flex items-center justify-center py-8">
-              <p className="text-center text-sm text-muted-foreground">No predictions</p>
+              <p className="text-center text-sm text-muted-foreground">{t("No predictions")}</p>
             </div>
           ) : (
             <ul className="divide-y divide-border/30">
@@ -285,7 +287,7 @@ export default function MatchPredictionsModal({ matchId, isOpen, onClose, active
                     <li key={`${p.user_id}-${baseName}`} className="flex items-center justify-between px-3 py-3">
                       <div className="min-w-0">
                         <span className="text-sm font-medium text-foreground">
-                          {baseName}{isMe && <span className="text-xs text-muted-foreground ml-2">(You)</span>}
+                          {baseName}{isMe && <span className="text-xs text-muted-foreground ml-2">{t("(You)")}</span>}
                         </span>
                       </div>
 
@@ -309,7 +311,7 @@ export default function MatchPredictionsModal({ matchId, isOpen, onClose, active
             onClick={(e) => { e.stopPropagation(); onClose?.() }}
             className="w-full py-3 rounded-xl bg-card hover:bg-muted text-muted-foreground font-semibold transition-all border border-red-500/40"
           >
-            Close
+            {t("Close")}
           </button>
         </div>
       </Panel>

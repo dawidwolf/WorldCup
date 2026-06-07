@@ -372,7 +372,7 @@ export function ProfileTab({
           <div className="text-right flex items-center gap-2">
             <p className="text-lg font-bold text-primary">#{userRankLocal ?? rank}</p>
             <span className="text-muted-foreground text-sm">|</span>
-            <p className="text-sm text-muted-foreground">{(userPointsLocal ?? userPoints) || 0} pts</p>
+            <p className="text-sm text-muted-foreground">{(userPointsLocal ?? userPoints) || 0} {t("pts")}</p>
           </div>
         </button>
 
@@ -524,7 +524,7 @@ export function ProfileTab({
                   <div className="flex flex-1 items-center justify-center">
                     <img
                       src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&color=0-0-0&bgcolor=255-255-255&data=${encodeURIComponent(getInviteUrl(invitePoolName))}`}
-                      alt="Invite QR code"
+                      alt={t("Invite QR code")}
                       className="w-[220px] h-[220px] max-w-full rounded-xl bg-white p-2"
                     />
                   </div>
@@ -536,7 +536,7 @@ export function ProfileTab({
                     onClick={closeInvite}
                     className="w-full py-3 rounded-xl bg-card hover:bg-muted text-muted-foreground font-semibold transition-all border border-red-500/40"
                   >
-                    Close
+                    {t("Close")}
                   </button>
                 </div>
               </div>
