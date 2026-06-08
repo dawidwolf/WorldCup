@@ -9,6 +9,7 @@ import { toast } from "sonner"
 import { getFlag as mapFlag } from '@/lib/flags'
 import { getAppTime } from '@/lib/time'
 import { useTournamentData } from "@/context/tournament-data-context"
+import { PredictionGuideCard } from "./prediction-guide-card"
 
 // Local lightweight types to avoid circular type resolution issues
 type Match = {
@@ -50,7 +51,6 @@ type Standing = {
 }
 
 // FIFA 2026 World Cup group seeding order (position within each group, 1-indexed)
-// Edit any team's position here if you want to reorder them manually.
 const GROUP_SEEDING: Record<string, number> = {
   // Group A
   MEX: 1, RSA: 2, KOR: 3, CZE: 4,
@@ -101,19 +101,23 @@ const LOCAL_DAY_FORMATTER = new Intl.DateTimeFormat('en-US', {
 const getMatchTimestamp = (kickoffUtc?: string | null) => kickoffUtc ? Date.parse(kickoffUtc) : 0
 const getLocalDayKey = (timestampMs: number) => LOCAL_DAY_FORMATTER.format(timestampMs)
 
-const formatMatchTime = (kickoffUtc?: string | null) => {
+const formatMatchTime = (kickoffUtc: string | null, t: (key: string) => string, language: string) => {
+  if (!kickoffUtc) return ""
   const now = getAppTime()
   const kickoffMs = getMatchTimestamp(kickoffUtc)
   const todayKey = getLocalDayKey(now.getTime())
   const tomorrowKey = getLocalDayKey(now.getTime() + DAY_MS)
   const kickoffKey = getLocalDayKey(kickoffMs)
 
-  const timePart = new Intl.DateTimeFormat('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }).format(kickoffMs)
+  // ⚡ Dynamically switch between Hungarian and English system formats
+  const locale = language === 'hu' ? 'hu-HU' : 'en-US'
 
-  if (kickoffKey === todayKey) return `Today, ${timePart}`
-  if (kickoffKey === tomorrowKey) return `Tomorrow, ${timePart}`
+  const timePart = new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit', hour12: false }).format(kickoffMs)
 
-  return new Intl.DateTimeFormat('en-US', {
+  if (kickoffKey === todayKey) return `${t("Today")}, ${timePart}`
+  if (kickoffKey === tomorrowKey) return `${t("Tomorrow")}, ${timePart}`
+
+  return new Intl.DateTimeFormat(locale, {
     weekday: 'short', month: 'short', day: 'numeric',
     hour: '2-digit', minute: '2-digit', hour12: false
   }).format(kickoffMs)
@@ -126,18 +130,8 @@ interface MatchesTabProps {
   activePoolId?: number | null
 }
 
-const getFlag = (code: string) => {
-  const flags: Record<string, string> = {
-    BRA: "đź‡§đź‡·", GER: "đź‡©đź‡Ş", ARG: "đź‡¦đź‡·", FRA: "đź‡«đź‡·", ESP: "đź‡Şđź‡¸", ENG: "đźŹ´ó §ó ˘ó Ąó ®ó §ó ż", 
-    POR: "đź‡µđź‡ą", NED: "đź‡łđź‡±", ITA: "đź‡®đź‡ą", BEL: "đź‡§đź‡Ş", CRO: "đź‡­đź‡·", MAR: "đź‡˛đź‡¦", 
-    JPN: "đź‡Żđź‡µ", KOR: "đź‡°đź‡·", USA: "đź‡şđź‡¸", MEX: "đź‡˛đź‡˝", CAN: "đź‡¨đź‡¦", SCO: "🏴󠁧󠁢󠁳󠁣󠁴󠁿",
-  }
-  return flags[code] || "đźŹłď¸Ź"
-}
-
 export function MatchesTab({ currentUserId, activeFilter, onFilterChange, activePoolId = null }: MatchesTabProps) {
-  const { t } = useTournamentData()
-  const { matches, predictions: predictionsMap, teams, standings, updatePrediction, isLoading: loading } = useTournamentData()
+  const { t, language, matches, predictions: predictionsMap, teams, standings, updatePrediction, isLoading: loading } = useTournamentData()
   const [activeGroup, setActiveGroup] = useState<string | null>(null)
   const [now, setNow] = useState(getAppTime())
   const [saving, setSaving] = useState<Record<string, boolean>>({})
@@ -145,12 +139,12 @@ export function MatchesTab({ currentUserId, activeFilter, onFilterChange, active
   const listRef = useRef<HTMLDivElement | null>(null)
 
   const translateGroup = (raw: string | null | undefined): string => {
-  if (!raw) return ''
-  const match = raw.match(/^Group\s+([A-Z]+)$/i)
-  if (!match) return raw
-  const letter = match[1].toUpperCase()
-  const word = t("Group")
-  return word === "Group" ? `${word} ${letter}` : `${letter} ${word}`
+    if (!raw) return ''
+    const match = raw.match(/^Group\s+([A-Z]+)$/i)
+    if (!match) return raw
+    const letter = match[1].toUpperCase()
+    const word = t("Group")
+    return word === "Group" ? `${word} ${letter}` : `${letter} ${word}`
   }
 
   const predictions = useMemo(() => {
@@ -172,7 +166,6 @@ export function MatchesTab({ currentUserId, activeFilter, onFilterChange, active
     }
   }, [activeFilter])
 
-  // Scroll to today's or next upcoming match when 'all' filter is activated (instant)
   const scrollToDefault = () => {
     if (matches.length === 0) return
     const nowDate = getAppTime()
@@ -198,19 +191,14 @@ export function MatchesTab({ currentUserId, activeFilter, onFilterChange, active
   }
 
   const handleFilterChange = (filter: string) => {
-    // If user is viewing a group's matches and presses the Groups filter, go back to grid
     if (filter === 'group' && activeGroup) {
       setActiveGroup(null)
     }
-    // Scroll behavior: 'all' => instant jump to next match; other filters => instant jump to page top
     if (filter === 'all') {
       onFilterChange(filter)
-      // ensure scroll runs after DOM updates
       setTimeout(scrollToDefault, 0)
       return
     }
-
-    // instant jump to top for other filters
     window.scrollTo({ top: 0, behavior: 'auto' })
     onFilterChange(filter)
   }
@@ -249,34 +237,25 @@ export function MatchesTab({ currentUserId, activeFilter, onFilterChange, active
     const nowMs = now.getTime()
     const hasPrediction = prediction && prediction.home !== null && prediction.away !== null
 
-    if (rawStatus === 'PST') {
-      return 'Postponed'
-    }
+    if (rawStatus === 'PST') return 'Postponed'
+    if (match.is_finished || rawStatus === 'FT') return 'Finished'
+    if (['LIVE', '1H', '2H', 'ET', 'PEN'].includes(rawStatus)) return 'Live'
+    if (hasPrediction) return 'Saved'
 
-    if (match.is_finished || rawStatus === 'FT') {
-      return 'Finished'
-    }
+    const timeDiff = kickoffMs - nowMs
+    if (timeDiff <= DAY_MS) return 'Closes soon'
 
-    if (['LIVE', '1H', '2H', 'ET', 'PEN'].includes(rawStatus)) {
-      return 'Live'
-    }
+    // ⚡ FIX: Use calendar-day boundaries matching getUpcomingText to prevent mixups
+    const localNowMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const matchDate = new Date(kickoffMs)
+    const localMatchMidnight = new Date(matchDate.getFullYear(), matchDate.getMonth(), matchDate.getDate())
+    
+    const calendarDiffMs = localMatchMidnight.getTime() - localNowMidnight.getTime()
+    const daysAway = Math.round(calendarDiffMs / DAY_MS)
 
-    if (rawStatus === 'NS' || rawStatus === 'SCHEDULED' || rawStatus === '') {
-      if (hasPrediction) return 'Saved'
+    if (daysAway <= 3) return 'Upcoming Yellow'
 
-      const timeDiff = kickoffMs - nowMs
-      if (timeDiff > 0 && timeDiff <= DAY_MS) {
-        return 'Closes soon'
-      }
-
-      return 'Coming up'
-    }
-
-    if (hasPrediction) {
-      return 'Saved'
-    }
-
-    return 'Coming up'
+    return 'Upcoming Grey'
   }
 
   const getPointsEarned = (match: any, prediction: { home: number | null; away: number | null } | undefined) => {
@@ -292,29 +271,52 @@ export function MatchesTab({ currentUserId, activeFilter, onFilterChange, active
 
     const actualDiff = actH - actA
     const predDiff = pHome - pAway
-    // same goal difference (but not exact) -> medium reward
     if (actualDiff === predDiff) return { amount: 3, type: "Goal Difference" }
-    // same outcome (winner/draw) but different goal diff -> smaller reward
     if (Math.sign(actualDiff) === Math.sign(predDiff)) return { amount: 2, type: "Outcome" }
 
     return { amount: 0, type: "pts" }
   }
+  const MIN_MS = 60 * 1000
+  const HOUR_MS = 60 * MIN_MS
+  const DAY_MS = 24 * HOUR_MS
 
-  const getClosesInText = (kickoffUtc?: string | null) => {
-    const diffMs = getMatchTimestamp(kickoffUtc) - now.getTime()
-    if (isNaN(diffMs) || diffMs <= 0 || diffMs > DAY_MS) return undefined
-    const hours = Math.floor(diffMs / (1000 * 60 * 60))
-    const mins = Math.floor((diffMs / (1000 * 60)) % 60)
-    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`
+  const getUpcomingText = (kickoffUtc: string | null) => {
+    if (!kickoffUtc) return undefined
+
+    const nowAPP = getAppTime()
+    const matchTimestamp = getMatchTimestamp(kickoffUtc)
+    const diffMs = matchTimestamp - nowAPP.getTime()
+    if (isNaN(diffMs) || diffMs <= 0) return undefined
+
+    // 1. If it's less than 24 hours away, keep showing the absolute hour/minute breakdown
+    if (diffMs <= DAY_MS) {
+      const hours = Math.floor(diffMs / HOUR_MS)
+      const mins = Math.floor((diffMs % HOUR_MS) / MIN_MS)
+      if (hours > 0) {
+        return language === 'hu' ? `${hours} óra múlva` : `Starts in ${hours}h`
+      }
+      return language === 'hu' ? `${mins} perc múlva` : `Starts in ${mins}m`
+    }
+
+    // 2. Calendar-day based math for "X days away"
+    const localNowMidnight = new Date(nowAPP.getFullYear(), nowAPP.getMonth(), nowAPP.getDate())
+    const matchDate = new Date(matchTimestamp)
+    const localMatchMidnight = new Date(matchDate.getFullYear(), matchDate.getMonth(), matchDate.getDate())
+
+    // Calculate difference based on pure calendar boundaries
+    const calendarDiffMs = localMatchMidnight.getTime() - localNowMidnight.getTime()
+    const days = Math.round(calendarDiffMs / DAY_MS)
+
+    return language === 'hu' ? `${days} nap múlva` : `Starts in ${days} days`
   }
 
   const filteredMatches = matches.filter((m: Match) => {
     if (activeGroup) return (
-  m.group === activeGroup ||
-  m.group === `Group ${activeGroup}` ||
-  m.round === activeGroup ||
-  m.round === `Group ${activeGroup}`
-  )
+      m.group === activeGroup ||
+      m.group === `Group ${activeGroup}` ||
+      m.round === activeGroup ||
+      m.round === `Group ${activeGroup}`
+    )
     
     const matchTimestamp = getMatchTimestamp(m.kickoff_utc)
     const nowTimestamp = now.getTime()
@@ -324,8 +326,6 @@ export function MatchesTab({ currentUserId, activeFilter, onFilterChange, active
     
     if (activeFilter === "all") return true
     if (activeFilter === "today") return isToday || getLocalDayKey(matchTimestamp) === tomorrowKey
-    // "group" without activeGroup renders the Grid, so this mapping won't be used
-    if (activeFilter === "knockouts") return !m.round?.toLowerCase().includes("group") && !m.group?.toLowerCase().includes("group")
     return true
   })
 
@@ -342,14 +342,17 @@ export function MatchesTab({ currentUserId, activeFilter, onFilterChange, active
     const groupLetters = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"]
     
     return (
-      <div className="space-y-6 pt-28">
+      <div className="space-y-3 pt-28">
         <MatchFilters activeFilter={activeFilter} onFilterChange={handleFilterChange} />
+        <p className="text-center text-xs font-medium text-muted-foreground px-4 animate-fade-in">
+        {t("Click on a group to view the matches.")}
+        </p>
+
         <div className="px-4 pb-24 grid grid-cols-2 gap-4">
           {groupLetters.map(letter => {
             const groupKey = letter
             const grpName = translateGroup(`Group ${letter}`)
             let groupTeams = teams.filter((t: Team) => {
-              // Support several possible stored formats: 'A', 'Group A', or full 'Group A'
               return t.group === groupKey || t.group === grpName || t.group === `Group ${groupKey}`
             })
             if (groupTeams.length === 0) {
@@ -368,11 +371,9 @@ export function MatchesTab({ currentUserId, activeFilter, onFilterChange, active
                 gd: st?.goal_difference || 0
               }
             }).sort((a: any, b: any) => {
-                // During tournament: sort by points, then goal difference
                 if (a.pts !== 0 || b.pts !== 0) {
                   return b.pts - a.pts || b.gd - a.gd
                 }
-                // Before tournament: fall back to FIFA seeding order
                 const seedA = GROUP_SEEDING[a.abbr] ?? 99
                 const seedB = GROUP_SEEDING[b.abbr] ?? 99
                 return seedA - seedB
@@ -380,31 +381,31 @@ export function MatchesTab({ currentUserId, activeFilter, onFilterChange, active
 
             return (
               <div 
-                  key={grpName} 
-                  onClick={() => { setActiveGroup(groupKey); window.scrollTo({ top: 0, behavior: 'auto' }); }}
-                  className="bg-card border border-border/50 rounded-xl p-3 shadow-sm cursor-pointer hover:bg-muted/50 transition-colors"
-                >
+                key={grpName} 
+                onClick={() => { setActiveGroup(groupKey); window.scrollTo({ top: 0, behavior: 'auto' }); }}
+                className="bg-card border border-border/50 rounded-xl p-3 shadow-sm cursor-pointer hover:bg-muted/50 transition-colors"
+              >
                 <div className="flex justify-between items-center mb-2 border-b border-border/50 pb-1">
                   <span className="font-bold text-foreground text-sm">{grpName}</span>
                   <div className="flex gap-2 text-[10px] text-muted-foreground w-12 justify-end">
-                    <span className="w-5 text-center">GD</span>
-                    <span className="w-5 text-center">PTS</span>
+                    <span className="w-5 text-center">{t("GD")}</span>
+                    <span className="w-5 text-center">{t("PTS")}</span>
                   </div>
                 </div>
                 <div className="space-y-1">
                   {teamStats.map((ts: any, idx: number) => (
-                          <div key={idx} className="flex justify-between items-center text-xs">
-                            <div className="w-6 flex justify-center text-muted-foreground font-bold">{idx + 1}</div>
-                            <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                              <span className="text-sm">{ts.flag}</span>
-                              <span className="text-foreground font-medium truncate">{ts.abbr}</span>
-                            </div>
-                            <div className="flex gap-2 w-12 justify-end font-mono">
-                              <span className="w-5 text-center text-muted-foreground">{ts.gd > 0 ? `+${ts.gd}` : ts.gd}</span>
-                              <span className="w-5 text-center font-bold text-foreground">{ts.pts}</span>
-                            </div>
-                          </div>
-                        ))}
+                    <div key={idx} className="flex justify-between items-center text-xs">
+                      <div className="w-6 flex justify-center text-muted-foreground font-bold">{idx + 1}</div>
+                      <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                        <span className="text-sm">{ts.flag}</span>
+                        <span className="text-foreground font-medium truncate">{ts.abbr}</span>
+                      </div>
+                      <div className="flex gap-2 w-12 justify-end font-mono">
+                        <span className="w-5 text-center text-muted-foreground">{ts.gd > 0 ? `+${ts.gd}` : ts.gd}</span>
+                        <span className="w-5 text-center font-bold text-foreground">{ts.pts}</span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )
@@ -418,6 +419,9 @@ export function MatchesTab({ currentUserId, activeFilter, onFilterChange, active
     <div className="space-y-6 pt-28">
       <MatchFilters activeFilter={activeFilter} onFilterChange={handleFilterChange} />
       <div ref={listRef} className="space-y-4 px-4 pb-24">
+        {activeFilter === "all" && !activeGroup && (
+          <PredictionGuideCard t={t} />
+        )}
         {activeGroup && (
           <button 
             onClick={() => setActiveGroup(null)}
@@ -434,17 +438,12 @@ export function MatchesTab({ currentUserId, activeFilter, onFilterChange, active
 
           const renderMatch = (m: any) => {
             const prediction = predictions[m.match_id]
-            const status = calculateStatus(m, prediction)
+            const cardStatus = calculateStatus(m, prediction)
+            const closesIn = getUpcomingText(m.kickoff_utc)
+            const isSaved = cardStatus === "Saved"
+            const status = m.status
 
-            let closesIn = undefined
-            if (status === "Closes soon") {
-              const diffMs = getMatchTimestamp(m.kickoff_utc) - now.getTime()
-              const hours = Math.floor(diffMs / (1000 * 60 * 60))
-              const mins = Math.floor((diffMs / (1000 * 60)) % 60)
-              closesIn = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`
-            }
-
-            const matchTime = formatMatchTime(m.kickoff_utc)
+            const matchTime = formatMatchTime(m.kickoff_utc, t, language)
             const homeTeamObj = teams.find((t: Team) => t.team_id === m.home_team_id || t.abbreviation === m.home_team)
             const awayTeamObj = teams.find((t: Team) => t.team_id === m.away_team_id || t.abbreviation === m.away_team)
 
@@ -460,12 +459,8 @@ export function MatchesTab({ currentUserId, activeFilter, onFilterChange, active
             const homeCode = deriveAbbr(homeTeamObj, m.home_team ?? undefined) || (m.home_team_id?.toString() ?? 'H')
             const awayCode = deriveAbbr(awayTeamObj, m.away_team ?? undefined) || (m.away_team_id?.toString() ?? 'A')
 
-              const homeFlag = ((m.home_flag ?? undefined) || homeTeamObj?.team_flag) ?? mapFlag(homeCode ?? undefined)
-              const awayFlag = ((m.away_flag ?? undefined) || awayTeamObj?.team_flag) ?? mapFlag(awayCode ?? undefined)
-
-            // Calculate the dynamic status hierarchy (Saved > Closes soon > Coming up)
-            const cardStatus = calculateStatus(m, prediction)
-            const isSaved = cardStatus === "Saved"
+            const homeFlag = ((m.home_flag ?? undefined) || homeTeamObj?.team_flag) ?? mapFlag(homeCode ?? undefined)
+            const awayFlag = ((m.away_flag ?? undefined) || awayTeamObj?.team_flag) ?? mapFlag(awayCode ?? undefined)
 
             return (
               <MatchCard
@@ -475,14 +470,13 @@ export function MatchesTab({ currentUserId, activeFilter, onFilterChange, active
                 awayTeam={{ code: awayCode, name: awayTeamObj?.team_name || m.away_team || 'TBD', flag: awayFlag }}
                 group={translateGroup(m.group) || m.round || ''}
                 matchTime={matchTime}
-                status={status ?? undefined} // ⚡ Uses our updated status string variable
-                // ⚡ Dynamically fallback to true if database status indicates it is over
+                status={status ?? undefined}
                 isCompleted={m.is_finished === true || m.status === "FT" || cardStatus === "Finished"}
                 isLive={["LIVE", "1H", "2H", "ET", "PEN"].includes((m.status ?? "").toUpperCase()) || cardStatus === "Live"}
                 isPredictionSaved={isSaved}
                 isToday={cardStatus === "Closes soon"}
+                isUpcomingFar={cardStatus === "Upcoming Grey"} //
                 closesIn={closesIn}
-                // ⚡ This safely parses now that type Match has home_score and away_score!
                 finalScore={m.home_score !== null && m.away_score !== null ? { home: m.home_score, away: m.away_score } : undefined}
                 pointsEarned={getPointsEarned(m, prediction)}
                 controlledPrediction={prediction}
@@ -496,74 +490,74 @@ export function MatchesTab({ currentUserId, activeFilter, onFilterChange, active
 
           return (
             <>
-                  {todayMatches.length > 0 && (
-                    <div className="mt-2 mb-2 flex items-center gap-3">
-                      <div className="flex-1 h-px bg-border/40" />
-                      <div className="text-xs text-muted-foreground font-semibold">{t("Today")}</div>
-                      <div className="flex-1 h-px bg-border/40" />
-                    </div>
-                  )}
-                  {todayMatches.map(renderMatch)}
-                  {tomorrowMatches.length > 0 && (
-                    <div className="mt-2 mb-2 flex items-center gap-3">
-                      <div className="flex-1 h-px bg-border/40" />
-                      <div className="text-xs text-muted-foreground font-semibold">{t("Tomorrow")}</div>
-                      <div className="flex-1 h-px bg-border/40" />
-                    </div>
-                  )}
-                  {tomorrowMatches.map(renderMatch)}
+              {todayMatches.length > 0 && (
+                <div className="mt-2 mb-2 flex items-center gap-3">
+                  <div className="flex-1 h-px bg-border/40" />
+                  <div className="text-xs text-muted-foreground font-semibold">{t("Today")}</div>
+                  <div className="flex-1 h-px bg-border/40" />
+                </div>
+              )}
+              {todayMatches.map(renderMatch)}
+              {tomorrowMatches.length > 0 && (
+                <div className="mt-2 mb-2 flex items-center gap-3">
+                  <div className="flex-1 h-px bg-border/40" />
+                  <div className="text-xs text-muted-foreground font-semibold">{t("Tomorrow")}</div>
+                  <div className="flex-1 h-px bg-border/40" />
+                </div>
+              )}
+              {tomorrowMatches.map(renderMatch)}
             </>
           )
         })() : (
           (() => {
-            const todayKey = getLocalDayKey(now.getTime())
-            const tomorrowKey = getLocalDayKey(now.getTime() + DAY_MS)
-
             return filteredMatches.map((m) => {
-            const prediction = predictions[m.match_id]
+              const prediction = predictions[m.match_id]
 
-            const homeTeamObj = teams.find(t => t.team_id === m.home_team_id)
-            const awayTeamObj = teams.find(t => t.team_id === m.away_team_id)
+              const homeTeamObj = teams.find(t => t.team_id === m.home_team_id)
+              const awayTeamObj = teams.find(t => t.team_id === m.away_team_id)
 
-            const homeCode = homeTeamObj?.abbreviation || m.home_team || '???'
-            const awayCode = awayTeamObj?.abbreviation || m.away_team || '???'
-            const homeFlag = homeTeamObj?.team_flag || mapFlag(homeCode)
-            const awayFlag = awayTeamObj?.team_flag || mapFlag(awayCode)
+              const homeCode = homeTeamObj?.abbreviation || m.home_team || '???'
+              const awayCode = awayTeamObj?.abbreviation || m.away_team || '???'
+              const homeFlag = homeTeamObj?.team_flag || mapFlag(homeCode)
+              const awayFlag = awayTeamObj?.team_flag || mapFlag(awayCode)
 
-            // ADD these lines:
-            const matchTime = formatMatchTime(m.kickoff_utc)
-            const displayGroup = m.group || m.round || ''
-            
-            const cardStatus = calculateStatus(m, prediction)
-            const isSaved = cardStatus === "Saved"
-            const closesIn = cardStatus === "Closes soon" ? getClosesInText(m.kickoff_utc) : undefined
-            const status = m.status  // keep passing raw DB status for MatchCard's usesTimeBasedBadge
+              const matchTime = formatMatchTime(m.kickoff_utc, t, language)
 
-            return (
-              <div key={m.match_id} className="relative">
-                <MatchCard
-                  id={m.match_id.toString()}
-                  homeTeam={{ code: homeCode, name: homeTeamObj?.team_name || m.home_team || 'TBD', flag: homeFlag }}
-                  awayTeam={{ code: awayCode, name: awayTeamObj?.team_name || m.away_team || 'TBD', flag: awayFlag }}
-                  group={translateGroup(m.group) || m.round || ''}
-                  matchTime={matchTime}
-                  status={status ?? undefined} // ⚡ Uses our updated status string variable
-                  isCompleted={status === "Finished"}
-                  isLive={status === "Live"}
-                  isPredictionSaved={isSaved}
-                  isToday={status === "Closes soon"}
-                  closesIn={closesIn}
-                  finalScore={m.home_score !== null && m.away_score !== null ? { home: m.home_score as number, away: m.away_score as number } : undefined}
-                  pointsEarned={getPointsEarned(m, prediction)}
-                  controlledPrediction={prediction}
-                  onPredictionChange={handlePredictionChange}
-                  isSaving={!!saving[m.match_id]}
-                  activePoolId={activePoolId}
-                  currentUserId={currentUserId}
-                />
-              </div>
-            )
-          })
+              // ⚡ 1. Calculate cardStatus so it is defined and ready to use below
+              const cardStatus = calculateStatus(m, prediction)
+              const isSaved = cardStatus === "Saved"
+              const closesIn = getUpcomingText(m.kickoff_utc)
+              const status = m.status
+
+              return (
+                <div key={m.match_id} className="relative">
+                  <MatchCard
+                    id={m.match_id.toString()}
+                    homeTeam={{ code: homeCode, name: homeTeamObj?.team_name || m.home_team || 'TBD', flag: homeFlag }}
+                    awayTeam={{ code: awayCode, name: awayTeamObj?.team_name || m.away_team || 'TBD', flag: awayFlag }}
+                    group={translateGroup(m.group) || m.round || ''}
+                    matchTime={matchTime}
+                    status={status ?? undefined}
+                    isCompleted={m.is_finished === true || m.status === "FT" || cardStatus === "Finished"}
+                    isLive={["LIVE", "1H", "2H", "ET", "PEN"].includes((m.status ?? "").toUpperCase()) || cardStatus === "Live"}
+                    isPredictionSaved={isSaved}
+                    
+                    // ⚡ 2. Pass down variables checking against cardStatus values
+                    isToday={cardStatus === "Closes soon"}
+                    isUpcomingFar={cardStatus === "Upcoming Grey"}
+                    
+                    closesIn={closesIn}
+                    finalScore={m.home_score !== null && m.away_score !== null ? { home: m.home_score as number, away: m.away_score as number } : undefined}
+                    pointsEarned={getPointsEarned(m, prediction)}
+                    controlledPrediction={prediction}
+                    onPredictionChange={handlePredictionChange}
+                    isSaving={!!saving[m.match_id]}
+                    activePoolId={activePoolId}
+                    currentUserId={currentUserId}
+                  />
+                </div>
+              )
+            })
           })()
         )}
         {filteredMatches.length === 0 && (
@@ -575,4 +569,3 @@ export function MatchesTab({ currentUserId, activeFilter, onFilterChange, active
     </div>
   )
 }
-

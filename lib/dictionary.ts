@@ -128,6 +128,10 @@ const en: Dictionary = {
   "Not selected": "Not selected",
   "Invite QR code": "Invite QR code",
 
+  "Language": "Language",
+  "English": "🇬🇧 English",
+  "Hungarian": "🇭🇺 Hungarian",
+
   // ── PROFILE TAB — stats card ──────────────────────────────
   "Stats": "Stats",
   "All Hits": "All Hits",
@@ -185,6 +189,14 @@ const en: Dictionary = {
   // ── PAGE — loading / session ──────────────────────────────
   "Restoring session...": "Restoring session...",
   "Initializing tournament data...": "Initializing tournament data...",
+
+  "How to Predict?": "How to Predict?",
+  "Click on the score numbers (0:0) inside any match card below to enter or change your prediction. Your changes are saved automatically!": "Click on the score numbers (0:0) inside any match card below to enter or change your prediction. Your changes are saved automatically!",
+  "Flexible Deadline": "Flexible Deadline",
+  "You can freely modify your predicted scores anytime right up until each match officially kicks off.": "You can freely modify your predicted scores anytime right up until each match officially kicks off.",
+  "Look for the Checkmark": "Look for the Checkmark",
+  "A green check badge on a match card confirms your prediction is safely synced to our servers.": "A green check badge on a match card confirms your prediction is safely synced to our servers.",
+  "Click on a group to view the matches.": "Click on a group to view the matches.",
 }
 
 
@@ -245,8 +257,8 @@ const hu: Dictionary = {
   "Profile": "Profil",
 
   // ── MATCH FILTERS ─────────────────────────────────────────
-  "All Matches": "Összes",
-  "Today": "Ma",
+  "All Matches": "Összes meccs",
+  "Today": "Mai meccsek",
   "Groups": "Csoportok",
   "Knockouts": "Kieséses",
 
@@ -327,6 +339,10 @@ const hu: Dictionary = {
   "Not selected": "Nincs kiválasztva",
   "Invite QR code": "Meghívó QR-kód",
 
+  "Language": "Nyelv",
+  "English": "🇬🇧 Angol",
+  "Hungarian": "🇭🇺 Magyar",
+
   // ── PROFILE TAB — stats card ──────────────────────────────
   "Stats": "Statisztikák",
   "All Hits": "Találatok",
@@ -366,7 +382,7 @@ const hu: Dictionary = {
   "for the tournament winner": "a torna győzteséért",
   "for the top scorer": "a gólkirályért",
   "Deadlines": "Határidők",
-  "Match predictions lock exactly at kickoff. Every prediction can be changed until its deadline. Scores update after matches.": "Minden tipp módosítható a lezárásáig. Egy meccsre a kezdőrúgásig tippelhetsz.",
+  "Match predictions lock exactly at kickoff. Every prediction can be changed until its deadline. Scores update after matches.": "A meccsekre a kezdőrugásig tippelhetsz, és addig meg is változtathatod a tippedet. - A bajnokot és a gólkirályt az első meccsig kell megtippelned. - Hosszabbítás esetén a teljes játékidő szerint járnak a pontok.",
 
   // ── PROFILE TAB — logout ──────────────────────────────────
   "Logout": "Kijelentkezés",
@@ -381,6 +397,14 @@ const hu: Dictionary = {
   // ── PAGE — loading / session ──────────────────────────────
   "Restoring session...": "Belépés visszaállítása...",
   "Initializing tournament data...": "Adatok betöltése...",
+
+  "How to Predict?": "Hogyan tippelj?",
+  "Click on the score numbers (0:0) inside any match card below to enter or change your prediction. Your changes are saved automatically!": "Kattints egy meccsre a tippeléshez! A meccs kezdetéig megváltoztathatod a tippedet! A bónusz menüben tippeld meg a bajnokot és a gólkirályt is!",
+  "Flexible Deadline": "Rugalmas határidő",
+  "You can freely modify your predicted scores anytime right up until each match officially kicks off.": "Tippjeidet teljesen szabadon módosíthatod az adott mérkőzés hivatalos kezdetéig.",
+  "Look for the Checkmark": "Keresd a pipát",
+  "A green check badge on a match card confirms your prediction is safely synced to our servers.": "A meccskártyákon megjelenő zöld pipa jelzi, hogy a tipped sikeresen elmentődött a szerverünkön.",
+  "Click on a group to view the matches.": "Kattints egy csoportra a meccsek megtekintéséhez.",
 }
 
 // ─────────────────────────────────────────────────────────────

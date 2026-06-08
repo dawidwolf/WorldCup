@@ -360,42 +360,51 @@ export function ProfileTab({
 
   return (
     <div className="space-y-3">
-      {/* Dynamic Header Grid: full width if toggle is hidden, 2 columns if visible */}
-      <div className={`grid gap-3 ${hideLanguageToggle ? 'grid-cols-1' : 'grid-cols-2'}`}>
-        
-        {/* Left: Profile Header Card */}
-        <button
-          onClick={onNavigateToRankings}
-          className="w-full bg-card rounded-2xl p-4 shadow-lg shadow-black/20 border border-border/50 flex items-center justify-between text-left hover:border-primary/50 transition-colors"
-        >
-          <span className="text-lg font-bold text-foreground">{username.toUpperCase()}</span>
-          <div className="text-right flex items-center gap-2">
-            <p className="text-lg font-bold text-primary">#{userRankLocal ?? rank}</p>
-            <span className="text-muted-foreground text-sm">|</span>
-            <p className="text-sm text-muted-foreground">{(userPointsLocal ?? userPoints) || 0} {t("pts")}</p>
-          </div>
-        </button>
+      {/* ⚡ Profile Card: Now 100% full width with strict layout protection defenses */}
+      <button
+        onClick={onNavigateToRankings}
+        className="w-full bg-card rounded-2xl p-4 shadow-lg shadow-black/20 border border-border/50 flex items-center justify-between text-left hover:border-primary/50 transition-colors min-w-0"
+      >
+        <span className="text-lg font-bold text-foreground truncate mr-3">
+          {username.toUpperCase()}
+        </span>
+        <div className="text-right flex items-center gap-2 shrink-0">
+          <p className="text-lg font-bold text-primary">#{userRankLocal ?? rank}</p>
+          <span className="text-muted-foreground text-sm">|</span>
+          <p className="text-sm text-muted-foreground">{(userPointsLocal ?? userPoints) || 0} {t("pts")}</p>
+        </div>
+      </button>
 
-        {/* Right: Language Card */}
-        {!hideLanguageToggle && (
-          <div className="bg-card rounded-2xl p-3 shadow-lg shadow-black/20 border border-border/50 flex flex-col justify-between">
-            <div className="mt-1 flex items-center gap-2">
-              <button
-                onClick={() => setLanguage('en')}
-                className={`flex-1 py-2 rounded-xl font-bold uppercase tracking-wider text-base ${language === 'en' ? 'bg-card text-white border border-primary/60' : 'bg-card text-muted-foreground border border-border/40'}`}
-              >
-                🇬🇧 EN
-              </button>
-              <button
-                onClick={() => setLanguage('hu')}
-                className={`flex-1 py-2 rounded-xl font-bold uppercase tracking-wider text-base ${language === 'hu' ? 'bg-card text-white border border-primary/60' : 'bg-card text-muted-foreground border border-border/40'}`}
-              >
-                🇭🇺 HU
-              </button>
-            </div>
+      {/* ⚡ Segmented Setting Switch Row: Fixed button widths to eliminate language switching layout shifts */}
+      {!hideLanguageToggle && (
+        <div className="bg-card rounded-2xl p-1 shadow-lg shadow-black/20 border border-border/50 flex items-center justify-between">
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider pl-3">
+            {t("Language")}
+          </span>
+          <div className="flex items-center gap-1 bg-transparent p-1 rounded-xl border border-transparent shrink-0">
+            <button
+              onClick={() => setLanguage('en')}
+              className={`w-[100px] py-2.5 text-center rounded-lg font-bold tracking-wider text-[12px] transition-all ${
+                language === 'en'
+                  ? 'bg-muted text-foreground shadow-md shadow-black/10 border border-primary/50'
+                  : 'text-muted-foreground hover:text-foreground bg-transparent border border-transparent'
+              }`}
+            >
+              {t("English")}
+            </button>
+            <button
+              onClick={() => setLanguage('hu')}
+              className={`w-[100px] py-2.5 text-center rounded-lg font-bold tracking-wider text-[12px] transition-all ${
+                language === 'hu'
+                  ? 'bg-muted text-foreground shadow-md shadow-black/10 border border-primary/50'
+                  : 'text-muted-foreground hover:text-foreground bg-transparent border border-transparent'
+              }`}
+            >
+              {t("Hungarian")}
+            </button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Picks Cards */}
       <div className="grid grid-cols-2 gap-3">
@@ -589,7 +598,7 @@ export function ProfileTab({
 
           <button
             onClick={onLogout}
-            className="w-full bg-card text-destructive rounded-xl p-3 flex items-center justify-center gap-2 border border-border/50 active:bg-destructive/20 transition-colors mt-4"
+            className="w-full bg-card text-destructive rounded-xl p-3 flex items-center justify-center gap-2 border border-destructive/40 active:bg-destructive/20 transition-colors mt-4"
           >
             <LogOut className="w-4 h-4" />
             <span className="font-semibold italic">{t("Logout")}</span>

@@ -23,6 +23,7 @@ interface MatchCardProps {
   status?: string
   closesIn?: string
   isToday?: boolean
+  isUpcomingFar?: boolean //
   isPredictionSaved?: boolean
   isCompleted?: boolean
   isLive?: boolean // Added for live match state
@@ -45,6 +46,7 @@ export function MatchCard({
   status,
   closesIn,
   isToday,
+  isUpcomingFar,
   isPredictionSaved,
   isCompleted,
   isLive,
@@ -147,6 +149,7 @@ export function MatchCard({
   }
 
   // Determine the status badge to show on the top right
+  // Determine the status badge to show on the top right
   const renderStatusBadge = () => {
     if (isSaving) {
       return (
@@ -185,13 +188,8 @@ export function MatchCard({
         </span>
       )
     }
-    if (usesTimeBasedBadge && closesIn) {
-      return (
-        <span className="bg-destructive/20 text-destructive px-3 py-1 rounded-full text-xs font-medium animate-pulse">
-          {t("Closes soon")}
-        </span>
-      )
-    }
+    
+    // 1. Red status badge if match is closing within 24 hours
     if (usesTimeBasedBadge && isToday) {
       return (
         <span className="bg-destructive/20 text-destructive px-3 py-1 rounded-full text-xs font-medium animate-pulse">
@@ -200,10 +198,19 @@ export function MatchCard({
       )
     }
 
-    // Future matches (not today, not completed, not saved)
+    // 2. Grey status badge if match is further away than 3 days
+    if (usesTimeBasedBadge && isUpcomingFar) {
+      return (
+        <span className="bg-muted text-muted-foreground px-3 py-1 rounded-full text-xs font-medium">
+          {closesIn ? closesIn : t("Coming up")}
+        </span>
+      )
+    }
+
+    // 3. Default Amber/Yellow badge for matches in the 2-3 days window
     return (
       <span className="bg-amber-500/20 text-amber-500 px-3 py-1 rounded-full text-xs font-medium">
-        {t("Coming up")}
+        {closesIn ? closesIn : t("Coming up")}
       </span>
     )
   }
