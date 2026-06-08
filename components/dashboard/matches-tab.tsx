@@ -65,7 +65,7 @@ const GROUP_SEEDING: Record<string, number> = {
   USA: 1, PAR: 2, AUS: 3, TUR: 4,
 
   // Group E
-  GER: 1, CUW: 2, CIV: 3, ECU: 4,
+  GER: 1, CUR: 2, CIV: 3, ECU: 4,
 
   // Group F
   NED: 1, JPN: 2, SWE: 3, TUN: 4,

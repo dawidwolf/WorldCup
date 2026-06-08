@@ -279,43 +279,61 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
     return "bg-muted/60 text-muted-foreground border border-border/50"
   }
 
+  // ⚡ UPDATED: Aligns the rankings modal link with the production address
   const getInviteUrl = () => {
-    if (typeof window === "undefined") return ""
-    return `${window.location.origin}/?pool=${encodeURIComponent(poolName || "")}`
+    return "https://worldcuppred.vercel.app"
   }
 
   const copyTextToClipboard = async (text: string) => {
     if (typeof window === "undefined") return false
 
+    // 1. Try modern clipboard API first (Works on localhost or HTTPS production)
     if (navigator?.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text)
-      return true
+      try {
+        await navigator.clipboard.writeText(text)
+        return true
+      } catch (e) {
+        console.warn("Modern clipboard failed, trying mobile fallback...", e)
+      }
     }
 
+    // 2. Mobile & HTTP Insecure Fallback (iOS Safari + Android Chrome compatible)
     const textarea = document.createElement('textarea')
     textarea.value = text
-    textarea.setAttribute('readonly', 'true')
     textarea.style.position = 'fixed'
+    textarea.style.top = '0'
+    textarea.style.left = '0'
     textarea.style.opacity = '0'
     textarea.style.pointerEvents = 'none'
+    
     document.body.appendChild(textarea)
     textarea.focus()
     textarea.select()
+    
+    // 🔥 CRITICAL FOR IOS: Explicit selection range configuration
+    textarea.setSelectionRange(0, 99999)
 
-    const copied = document.execCommand('copy')
-    document.body.removeChild(textarea)
-    return copied
+    try {
+      const copied = document.execCommand('copy')
+      document.body.removeChild(textarea)
+      return copied
+    } catch (err) {
+      console.error("Fallback copy execution failed", err)
+      document.body.removeChild(textarea)
+      return false
+    }
   }
 
   const copyInvite = async () => {
     const url = getInviteUrl()
     if (!url) return
-    try {
-      await copyTextToClipboard(url)
-      toast.success("Invite link copied")
-    } catch (err) {
-      console.error("Copy failed", err)
-      toast.error("Failed to copy link")
+    
+    // ⚡ Verify if the clipboard successfully registered the data
+    const success = await copyTextToClipboard(url)
+    if (success) {
+      toast.success(t("Invite link copied"))
+    } else {
+      toast.error(t("Failed to copy link"))
     }
   }
 
@@ -443,11 +461,16 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
       </div>
 
       {/* Invite Modal */}
+      {/* Invite Modal */}
       <Dialog open={showInvite} onOpenChange={(open) => (open ? setShowInvite(true) : closeInvite())}>
         <DialogContent className="w-[calc(100%-32px)] max-w-sm rounded-2xl bg-card border-border/50 shadow-2xl p-6 mx-auto">
           <div className="text-center space-y-4">
             <h3 className="text-lg font-bold text-foreground">{t("Invite to")} <span className="text-primary">{poolName?.toUpperCase()}</span></h3>
-            <p className="text-sm text-muted-foreground">{t("Share the link or scan the QR code for a quick join")}</p>
+            
+            {/* ⚡ UPDATED: Changed instruction string for consistency across tabs */}
+            <p className="text-xs text-muted-foreground leading-relaxed px-1">
+              {t("Scan the qr code, register and enter the groups name to join.")}
+            </p>
 
             <div className="flex items-center gap-2 mt-2 w-full">
               <input
@@ -466,11 +489,11 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
               </button>
             </div>
 
-            <div className="flex justify-center py-4 mx-auto w-fit">
+            <div className="flex justify-center py-2 mx-auto w-fit">
               <img
                 src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&color=0-0-0&bgcolor=255-255-255&data=${encodeURIComponent(getInviteUrl())}`}
                 alt={t("Invite QR code")}
-                className="w-[220px] h-[220px]"
+                className="w-[220px] h-[220px] rounded-xl bg-white p-2"
               />
             </div>
             

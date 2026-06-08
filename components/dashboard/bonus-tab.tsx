@@ -277,19 +277,33 @@ export function BonusTab({ currentUserId, onSaved }: BonusTabProps) {
           <span>{t("Player")}</span>
           <span className="text-right">{t("Goals")}</span>
         </div>
+        {/* ⚡ Live Golden Boot Race List Wrapper */}
         <div className="space-y-2">
           {(() => {
+            // 1. Create a copy and sort dynamically: Goals descending, then player_id ascending
+            const sortedLeaders = [...goldenBootLeaders].sort((a, b) => {
+              const goalsA = a.goals ?? 0
+              const goalsB = b.goals ?? 0
+              
+              if (goalsB !== goalsA) {
+                return goalsB - goalsA // Primary sort: Highest goals first
+              }
+              return a.player_id - b.player_id // Secondary fallback sort: Lowest player_id first
+            })
+
             const ranks: number[] = []
             let currentRank = 1
             let tieCount = 1
-            for (let i = 0; i < goldenBootLeaders.length; i++) {
-              const cur = goldenBootLeaders[i]
+            
+            // 2. Compute ranks using the sorted array copy instead
+            for (let i = 0; i < sortedLeaders.length; i++) {
+              const cur = sortedLeaders[i]
               if (i === 0) {
                 ranks.push(currentRank)
                 tieCount = 1
                 continue
               }
-              const prev = goldenBootLeaders[i - 1]
+              const prev = sortedLeaders[i - 1]
               if ((cur.goals ?? 0) === (prev.goals ?? 0) && (cur.goals ?? 0) > 0) {
                 ranks.push(currentRank)
                 tieCount++
@@ -300,7 +314,8 @@ export function BonusTab({ currentUserId, onSaved }: BonusTabProps) {
               }
             }
 
-            return goldenBootLeaders.map((player, index) => {
+            // 3. Map over sortedLeaders to build the final UI components
+            return sortedLeaders.map((player, index) => {
               const rank = ranks[index] ?? (index + 1)
               const teamInfo = getPlayerTeamInfo(player.team_id)
               const isSelected = player.player_id === localScorerId || player.player_id === savedScorerId

@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { useTournamentData } from '@/context/tournament-data-context'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { useHistoryLayer } from '@/hooks/use-history-layer'
-
+import { toast } from "sonner"
 
 
 export interface UserPool {
@@ -320,41 +320,61 @@ export function ProfileTab({
   const accuracyRaw = totalPredictions > 0 ? ((displayStats.exactHits + displayStats.hits) / totalPredictions) * 100 : 0
   const accuracy = accuracyRaw.toFixed(1)
 
+  // ⚡ UPDATED: Returns the direct production app link without custom pool parameters
   const getInviteUrl = (poolName: string) => {
-    if (typeof window === 'undefined') return ''
-    return `${window.location.origin}/?pool=${encodeURIComponent(poolName.trim().toUpperCase())}`
+    return "https://worldcuppred.vercel.app"
   }
 
   const copyTextToClipboard = async (text: string) => {
     if (typeof window === 'undefined') return false
 
+    // 1. Try modern clipboard API first (Works on localhost or HTTPS production)
     if (navigator?.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text)
-      return true
+      try {
+        await navigator.clipboard.writeText(text)
+        return true
+      } catch (e) {
+        console.warn("Modern clipboard failed, trying mobile fallback...", e)
+      }
     }
 
+    // 2. Mobile & HTTP Insecure Fallback (iOS Safari + Android Chrome compatible)
     const textarea = document.createElement('textarea')
     textarea.value = text
-    textarea.setAttribute('readonly', 'true')
     textarea.style.position = 'fixed'
+    textarea.style.top = '0'
+    textarea.style.left = '0'
     textarea.style.opacity = '0'
     textarea.style.pointerEvents = 'none'
+    
     document.body.appendChild(textarea)
     textarea.focus()
     textarea.select()
+    
+    // 🔥 CRITICAL FOR IOS: Explicit selection range configuration
+    textarea.setSelectionRange(0, 99999)
 
-    const copied = document.execCommand('copy')
-    document.body.removeChild(textarea)
-    return copied
+    try {
+      const copied = document.execCommand('copy')
+      document.body.removeChild(textarea)
+      return copied
+    } catch (err) {
+      console.error("Fallback copy execution failed", err)
+      document.body.removeChild(textarea)
+      return false
+    }
   }
 
   const copyInvite = async () => {
     const url = getInviteUrl(invitePoolName)
     if (!url) return
-    try {
-      await copyTextToClipboard(url)
-    } catch (err) {
-      console.error(t('Copy invite failed'), err)
+    
+    // ⚡ Verify if the clipboard successfully registered the data
+    const success = await copyTextToClipboard(url)
+    if (success) {
+      toast.success(t("Invite link copied"))
+    } else {
+      toast.error(t("Failed to copy link"))
     }
   }
 
@@ -504,42 +524,47 @@ export function ProfileTab({
           </div>
 
           <Dialog open={showInvite} onOpenChange={(open) => (open ? setShowInvite(true) : closeInvite())}>
-            <DialogContent className="w-[calc(100%-32px)] max-w-sm h-[56vh] sm:h-auto sm:max-h-[85vh] rounded-2xl bg-card border border-border/40 shadow-2xl p-0 mx-auto overflow-hidden [&>button]:hidden">
-              <div className="flex h-full flex-col">
+            {/* ⚡ FIX: Removed h-[56vh] and used h-auto max-h-[90vh] so components are never covered up or squished on mobile screens */}
+            <DialogContent className="w-[calc(100%-32px)] max-w-sm h-auto max-h-[90vh] rounded-2xl bg-card border border-border/40 shadow-2xl p-0 mx-auto overflow-hidden [&>button]:hidden">
+              <div className="flex flex-col">
                 <div className="px-5 pt-5 pb-3 border-b border-border/30">
                   <h3 className="text-lg font-bold text-foreground">
                     {t("Invite players to")} <span className="text-primary">{invitePoolName.toUpperCase()}</span>
                   </h3>
+                  {/* ⚡ ADDED: Clear guidance note below header layout */}
+                  <p className="text-xs text-muted-foreground mt-1 leading-normal">
+                    {t("Scan the qr code, register and enter the groups name to join.")}
+                  </p>
                 </div>
 
-                <div className="flex flex-1 flex-col gap-4 px-5 py-4 overflow-y-auto">
+                <div className="flex flex-col gap-4 px-5 py-4">
                   <div className="flex items-center gap-2 w-full">
                     <input
                       readOnly
-                        tabIndex={-1}
-                        onFocus={(e) => e.currentTarget.blur()}
+                      tabIndex={-1}
+                      onFocus={(e) => e.currentTarget.blur()}
                       value={getInviteUrl(invitePoolName)}
-                        className="flex-1 min-w-0 bg-white/5 text-sm text-foreground px-3 py-2 rounded-xl border border-border/30 truncate"
+                      className="flex-1 min-w-0 bg-white/5 text-sm text-foreground px-3 py-2 rounded-xl border border-border/30 truncate"
                     />
                     <button
                       type="button"
                       onClick={copyInvite}
-                        className="shrink-0 px-3 py-2 rounded-xl bg-card hover:bg-muted text-muted-foreground text-sm font-bold border border-border/40"
+                      className="shrink-0 px-3 py-2 rounded-xl bg-card hover:bg-muted text-muted-foreground text-sm font-bold border border-border/40"
                     >
-                      Copy
+                      {t("Copy")}
                     </button>
                   </div>
 
-                  <div className="flex flex-1 items-center justify-center">
+                  <div className="flex items-center justify-center py-2">
                     <img
                       src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&color=0-0-0&bgcolor=255-255-255&data=${encodeURIComponent(getInviteUrl(invitePoolName))}`}
                       alt={t("Invite QR code")}
-                      className="w-[220px] h-[220px] max-w-full rounded-xl bg-white p-2"
+                      className="w-[220px] h-[220px] max-w-full rounded-xl bg-white p-2 shadow-inner"
                     />
                   </div>
                 </div>
 
-                <div className="sticky bottom-0 bg-card/90 backdrop-blur-sm border-t border-border/30 px-5 py-4">
+                <div className="bg-card/90 backdrop-blur-sm border-t border-border/30 px-5 py-4">
                   <button
                     type="button"
                     onClick={closeInvite}
@@ -557,7 +582,7 @@ export function ProfileTab({
             <div className="bg-primary/10 border border-primary/20 rounded-2xl p-4 flex gap-3 items-start">
               <Info className="w-5 h-5 text-primary shrink-0 mt-0.5" />
               <p className="text-sm text-foreground/90 leading-snug">
-                {t("Your match predictions are")} <span className="text-primary font-bold italic">{t("global")}</span> {t("and apply to every pool you belong to — you only need to predict once.")}
+                {t("Your match predictions are global and apply to every pool you belong to — you only need to predict once.")}
               </p>
             </div>
           )}

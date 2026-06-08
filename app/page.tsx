@@ -38,9 +38,10 @@ function Dashboard({ user, onLogout, onPoolsChanged, onNavigateToPools }: {
   onPoolsChanged: (hasPool: boolean) => void,
   onNavigateToPools: () => void
 }) {
-  const { userProfile, teams, players, pools, activePoolId, setActivePool, isLoading: isDataLoading } = useTournamentData()
+  // ⚡ FIX 1: Extracted 'refreshData' so we can manually trigger global state updates
+  const { t, userProfile, teams, players, pools, activePoolId, setActivePool, isLoading: isDataLoading, refreshData } = useTournamentData()
 
-  // ✅ ALL HOOKS MUST BE AT THE TOP — moved before any conditional return
+  // ✅ ALL HOOKS MUST BE AT THE TOP
   const [activeFilter, setActiveFilter] = useState("all")
   const [activeTab, setActiveTab] = useState<DashboardTab>("matches")
   const historyInitializedRef = useRef(false)
@@ -92,7 +93,7 @@ function Dashboard({ user, onLogout, onPoolsChanged, onNavigateToPools }: {
     const handlePopState = (event: PopStateEvent) => {
       const state = event.state as { kind?: string; tab?: DashboardTab } | null
       if (state?.kind === "guard") {
-        toast("Press back again to exit game.")
+        toast(t("Press back again to exit game."))
         return
       }
       if (!state) return
@@ -101,7 +102,7 @@ function Dashboard({ user, onLogout, onPoolsChanged, onNavigateToPools }: {
     }
     window.addEventListener("popstate", handlePopState)
     return () => window.removeEventListener("popstate", handlePopState)
-  }, [])
+  }, [t])
 
   useEffect(() => {
     onPoolsChanged(pools.length > 0)
@@ -117,18 +118,23 @@ function Dashboard({ user, onLogout, onPoolsChanged, onNavigateToPools }: {
       if (membersError) throw membersError
       const otherAdmins = members.filter(m => m.is_admin && m.user_id !== user.user_id)
       if (otherAdmins.length === 0 && members.length > 1) {
-        toast.error("You are the only admin. Please promote someone else before leaving.")
+        toast.error(t("You are the only admin. Please promote someone else before leaving."))
         return
       }
     }
     if (!confirm(`Are you sure you want to leave "${pool?.pool_name?.toUpperCase()}"?`)) return
+    
     try {
       const { error } = await supabase.rpc("leave_pool", {
         p_user_id: user.user_id,
         p_pool_id: poolId,
       })
       if (error) throw error
-      toast.success(`Left pool "${pool?.pool_name?.toUpperCase()}"`)
+      toast.success(`${t("Left pool")} "${pool?.pool_name?.toUpperCase()}"`)
+      
+      // ⚡ FIX 1: Instantly resync the entire app state to wipe the left pool from memory
+      await refreshData()
+
       if (activePoolId === poolId) {
         const remainingPools = pools.filter(p => p.pool_id !== poolId)
         if (remainingPools.length > 0) {
@@ -138,7 +144,7 @@ function Dashboard({ user, onLogout, onPoolsChanged, onNavigateToPools }: {
         }
       }
     } catch (error: any) {
-      toast.error("Failed to leave pool")
+      toast.error(t("Failed to leave pool"))
     }
   }
 
@@ -147,7 +153,7 @@ function Dashboard({ user, onLogout, onPoolsChanged, onNavigateToPools }: {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
         <Spinner className="w-12 h-12 text-primary mb-4" />
-        <p className="text-muted-foreground animate-pulse text-sm">Initializing tournament data...</p>
+        <p className="text-muted-foreground animate-pulse text-sm">{t("Initializing tournament data...")}</p>
       </div>
     )
   }
@@ -205,6 +211,7 @@ export default function Page() {
   const [user, setUser] = useState<{ user_id: number; username: string } | null>(null)
   const [hasPool, setHasPool] = useState<boolean>(false)
   const [isInitializing, setIsInitializing] = useState(true)
+  
 
   useEffect(() => {
     const checkUser = async () => {
@@ -282,6 +289,8 @@ export default function Page() {
   )
 }
 
+
+
 function AppRouter({
   view,
   setView,
@@ -297,11 +306,17 @@ function AppRouter({
   onPoolsChanged: (hasPool: boolean) => void,
   onNavigateToPools: () => void,
 }) {
-  const { pools, activePoolId, setActivePool, isLoading } = useTournamentData()
+  const { pools, activePoolId, setActivePool, isLoading, userProfile } = useTournamentData()
+  const { t } = useTournamentData()
+
+  // ⚡ FIX 2: Prevent premature routing. If the context hasn't loaded the newly 
+  // logged-in user's profile yet, treat the session as temporarily "stale".
+  const isStaleSession = Boolean(user && userProfile?.user_id !== user.user_id)
 
   // 1. ALL HOOKS RUN UNCONDITIONALLY AT THE VERY TOP
   React.useEffect(() => {
-    if (isLoading) return // Wait until database cache is ready
+    // ⚡ Halt all routing actions if data is loading OR if the session is stale
+    if (isLoading || isStaleSession) return 
     
     // No pools -> force Pools screen
     if (!pools || pools.length === 0) {
@@ -327,16 +342,14 @@ function AppRouter({
     if (pools.length > 1 && view !== "pools") {
       setView("dashboard")
     }
-  }, [pools, isLoading, view, setView, onPoolsChanged, setActivePool])
+  }, [pools, isLoading, isStaleSession, view, setView, onPoolsChanged, setActivePool])
 
   // 2. THE FLOATING SAFETY CURTAIN: BLOCKS ALL FLASHES
-  // If the data provider is initializing, OR if the app is trying to display the dashboard 
-  // but your active pool variables are not yet populated in memory, show the loading screen.
-  if (isLoading || (view === "dashboard" && !activePoolId)) {
+  if (isLoading || isStaleSession || (view === "dashboard" && !activePoolId)) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
         <Spinner className="w-12 h-12 text-primary mb-4" />
-        <p className="text-muted-foreground animate-pulse text-sm">Syncing tournament data...</p>
+        <p className="text-muted-foreground animate-pulse text-sm">{t("Syncing tournament data...")}</p>
       </div>
     )
   }

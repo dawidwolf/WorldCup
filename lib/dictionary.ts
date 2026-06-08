@@ -145,6 +145,7 @@ const en: Dictionary = {
   "Invite": "Invite",
   "Leave": "Leave",
   "You are not in any pools yet.": "You are not in any pools yet.",
+  "Scan the qr code, register and enter the groups name to join.": "Scan the qr code, register and enter the groups name to join.",
 
   // ── PROFILE TAB — leave pool confirm ─────────────────────
   "Are you sure you want to leave": "Are you sure you want to leave",
@@ -158,6 +159,7 @@ const en: Dictionary = {
   "Your match predictions are": "Your match predictions are",
   "global": "global",
   "and apply to every pool you belong to — you only need to predict once.": "and apply to every pool you belong to — you only need to predict once.",
+  "Your match predictions are global and apply to every pool you belong to — you only need to predict once.": "Your match predictions are global and apply to every pool you belong to - you only need to predict once.",
 
   // ── PROFILE TAB — rules card ──────────────────────────────
   "Official Rules": "Official Rules",
@@ -356,6 +358,7 @@ const hu: Dictionary = {
   "Invite": "Meghívás",
   "Leave": "Kilépés",
   "You are not in any pools yet.": "Még nem vagy egyetlen csoportban sem.",
+  "Scan the qr code, register and enter the groups name to join.": "Olvasd be a QR-kódot, regisztrálj, és add meg a csoport nevét a csatlakozáshoz.",
 
   // ── PROFILE TAB — leave pool confirm ─────────────────────
   "Are you sure you want to leave": "Biztosan ki szeretnél lépni ebből:",
@@ -369,6 +372,7 @@ const hu: Dictionary = {
   "Your match predictions are": "A meccs tippjeid",
   "global": "globálisak",
   "and apply to every pool you belong to — you only need to predict once.": "és minden csoportodban érvényesek — elég egyszer tippelni.",
+  "Your match predictions are global and apply to every pool you belong to — you only need to predict once.": "A tippjeid minden csoportodban érvényesek - elég egyszer tippelned.",
 
   // ── PROFILE TAB — rules card ──────────────────────────────
   "Official Rules": "Szabályok",
