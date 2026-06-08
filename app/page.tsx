@@ -317,7 +317,9 @@ function AppRouter({
     if (pools.length === 1) {
       const single = pools[0]
       setActivePool(single.pool_id)
-      setView("dashboard")
+      if (view !== "pools") {
+        setView("dashboard")
+      }
       return
     }
 

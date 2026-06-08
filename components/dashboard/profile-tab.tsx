@@ -471,7 +471,7 @@ export function ProfileTab({
                 pools.map((pool) => (
                   <div key={pool.pool_id} className="flex items-center justify-between py-1.5 border-b border-border/30 last:border-0 last:pb-0">
                     <div className="flex items-center gap-2">
-                      <span className="font-semibold text-sm text-foreground">{pool.pool_name.toUpperCase()}</span>
+                      <span className="font-semibold text-sm text-muted-foreground">{pool.pool_name.toUpperCase()}</span>
                       {pool.is_admin && (
                           <div className="flex items-center gap-1.5">
                             <span className="bg-secondary/20 text-primary text-[8px] px-1.5 py-0.5 rounded flex items-center gap-1 font-bold uppercase tracking-wider border border-primary/30">
@@ -498,7 +498,7 @@ export function ProfileTab({
                   </div>
                 ))
               ) : (
-                <p className="text-sm text-muted-foreground italic text-center py-2">You are not in any pools yet.</p>
+                <p className="text-sm text-muted-foreground italic text-center py-2">{t("You are not in any pools yet.")}</p>
               )}
             </div>
           </div>

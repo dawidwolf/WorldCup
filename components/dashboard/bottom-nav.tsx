@@ -23,7 +23,7 @@ const navItems: { id: DashboardTab; label: string; icon: any }[] = [
   { id: "profile", label: t("Profile"), icon: User },
 ]
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 glass-effect border-t safe-area-pb">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card border-t safe-area-pb">
       <div className="flex items-center justify-around py-2 px-4">
         {navItems.map((item) => {
           const Icon = item.icon
