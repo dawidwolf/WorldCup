@@ -209,11 +209,14 @@ export function MatchesTab({ currentUserId, activeFilter, onFilterChange, active
     
     try {
       if (!currentUserId) {
-        throw new Error('No active user')
+        throw new Error(t('No active user'))
       }
 
+      // Force-set the session variable before the RPC call to mitigate connection pooling issues.
+      await supabase.rpc("set_current_user_id", { uid: currentUserId })
+
       if ((home !== null && !Number.isInteger(home)) || (away !== null && !Number.isInteger(away)) || (home !== null && home < 0) || (away !== null && away < 0)) {
-        toast.error('Invalid score value')
+        toast.error(t('Invalid score value'))
         return
       }
 
@@ -224,8 +227,8 @@ export function MatchesTab({ currentUserId, activeFilter, onFilterChange, active
         [matchIdStr]: { home, away }
       }
     } catch (err: any) {
-      console.error('Save prediction error:', err)
-      toast.error(err?.message || 'Failed to save prediction')
+      console.error(t('Failed to save prediction'), err)
+      toast.error(err?.message || t('Failed to save prediction'))
     } finally {
       setSaving(prev => ({ ...prev, [matchIdStr]: false }))
     }

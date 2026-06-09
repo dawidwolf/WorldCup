@@ -100,27 +100,16 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
 
     setLoading(true)
     try {
-      const { data, error } = await supabase
-        .from("users")
-        .select("user_id, username, pin")
-        .eq("pin", cleanPin)
-        .ilike("username", cleanUsername)
-        .limit(2)
+      const { data, error } = await supabase.rpc("custom_login", {
+        p_username: cleanUsername,
+        p_pin: cleanPin,
+      })
 
-      if (error) {
-        toast.error(t("Login failed"))
+      if (error || !data || data.length === 0) {
+        toast.error(t("Login failed"), { description: t("Invalid username or PIN") })
         return
       }
 
-      if (!data || data.length === 0) {
-        toast.error(t("Invalid username or PIN"))
-        return
-      }
-
-      if (data.length > 1) {
-        toast.error(t("Multiple accounts match this username. Please contact support."))
-        return
-      }
       const matched = data[0]
 
       await setCurrentUserSession(matched.user_id)

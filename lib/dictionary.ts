@@ -66,6 +66,10 @@ const en: Dictionary = {
   "GD": "GD",
   "PTS": "PTS",
 
+  'Failed to save prediction': 'Failed to save prediction',
+  'Invalid score value': 'Invalid score value',
+  'No active user': 'No active user',
+
   // ── MATCH CARD — status badges ────────────────────────────
   "Saving...": "Saving...",
   "Postponed": "Postponed",
@@ -275,6 +279,11 @@ const hu: Dictionary = {
   // ── MATCHES TAB — group table headers ─────────────────────
   "GD": "GK",
   "PTS": "PT",
+
+  'Failed to save prediction': "Nem sikerült elmenteni a tippet",
+  'Invalid score value': "Érvénytelen tipp",
+  'No active user': "Nincs aktív felhasználó",
+
 
   // ── MATCH CARD — status badges ────────────────────────────
   "Saving...": "Mentés...",
