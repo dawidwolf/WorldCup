@@ -1,4 +1,4 @@
-﻿"use client"
+﻿﻿"use client"
 
 import { useState, useEffect, useRef, useMemo } from "react"
 import { supabase } from "@/lib/supabase"
@@ -156,9 +156,39 @@ export function MatchesTab({ currentUserId, activeFilter, onFilterChange, active
   }, [predictionsMap])
 
   useEffect(() => {
-    const timer = setInterval(() => setNow(getAppTime()), 60000)
-    return () => clearInterval(timer)
-  }, [])
+    // This effect sets up a precise timer to re-render exactly when a match
+    // state is expected to change (e.g., from 'upcoming' to 'live').
+    // This is more efficient and accurate than a fixed 60-second interval.
+
+    const nowMs = now.getTime()
+    let nextEventMs = Infinity
+
+    // Find the earliest time for a state change
+    matches.forEach((m: Match) => {
+      const kickoffMs = getMatchTimestamp(m.kickoff_utc)
+      if (kickoffMs > nowMs && kickoffMs < nextEventMs) {
+        // Next upcoming match kickoff
+        nextEventMs = kickoffMs
+      }
+      
+      const isLive = ["LIVE", "1H", "2H", "ET", "PEN"].includes((m.status ?? "").toUpperCase())
+      if (isLive && !m.is_finished) {
+        // Estimate when a live match might finish to re-check its status
+        const estimatedEndMs = kickoffMs + MATCH_LENGTH_MS
+        if (estimatedEndMs > nowMs && estimatedEndMs < nextEventMs) {
+          nextEventMs = estimatedEndMs
+        }
+      }
+    })
+
+    if (nextEventMs === Infinity) return
+
+    // Time until the next event, plus a small buffer (1s) to ensure state has changed.
+    const timeoutMs = nextEventMs - nowMs + 1000
+    const timerId = setTimeout(() => setNow(getAppTime()), timeoutMs)
+
+    return () => clearTimeout(timerId)
+  }, [matches, now]) // Rerun whenever matches data changes or `now` is manually updated.
 
   useEffect(() => {
     if (activeFilter !== "group") {

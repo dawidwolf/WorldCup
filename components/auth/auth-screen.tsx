@@ -246,27 +246,28 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
         </Tabs>
 
         {/* ⚡ ADDED: Minimal Language Toggle */}
+        {/* ⚡ UPDATED: Language toggle styling now matches the Profile tab for consistency. */}
         <div className="flex justify-center mt-6">
           <div className="flex items-center gap-1 bg-card p-1 rounded-xl border border-border/50 shadow-lg shadow-black/10">
             <button
               onClick={() => setLanguage('en')}
-              className={`w-[60px] py-2 text-center rounded-lg font-bold tracking-wider text-[12px] transition-all ${
+              className={`w-[100px] py-2.5 text-center rounded-lg font-bold tracking-wider text-[12px] transition-all ${
                 language === 'en'
-                  ? 'bg-muted text-foreground shadow-sm border border-primary/30'
+                  ? 'bg-muted text-foreground shadow-md shadow-black/10 border border-primary/50'
                   : 'text-muted-foreground hover:text-foreground bg-transparent border border-transparent'
               }`}
             >
-              EN
+              {t("English")}
             </button>
             <button
               onClick={() => setLanguage('hu')}
-              className={`w-[60px] py-2 text-center rounded-lg font-bold tracking-wider text-[12px] transition-all ${
+              className={`w-[100px] py-2.5 text-center rounded-lg font-bold tracking-wider text-[12px] transition-all ${
                 language === 'hu'
-                  ? 'bg-muted text-foreground shadow-sm border border-primary/30'
+                  ? 'bg-muted text-foreground shadow-md shadow-black/10 border border-primary/50'
                   : 'text-muted-foreground hover:text-foreground bg-transparent border border-transparent'
               }`}
             >
-              HU
+              {t("Hungarian")}
             </button>
           </div>
         </div>
