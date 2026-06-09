@@ -37,6 +37,7 @@ interface RankedUser {
 export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProps) {
   // Add a comment to trigger re-save
   const { t } = useTournamentData()
+  const REVEAL_ALL_PICKS = false // ⚡ Set to true to reveal all picks and test the profile modal without needing multiple accounts
   const [users, setUsers] = useState<RankedUser[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedPlayer, setSelectedPlayer] = useState<null | any>(null)
@@ -280,65 +281,42 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
   }
 
   // ⚡ UPDATED: Aligns the rankings modal link with the production address
+  // ⚡ Just the clean URL string
   const getInviteUrl = () => {
-    return "https://worldcuppred.vercel.app"
+    return "worldcuppred.vercel.app"
   }
 
-  const copyTextToClipboard = async (text: string) => {
-    if (typeof window === "undefined") return false
-
-    // 1. Try modern clipboard API first (Works on localhost or HTTPS production)
-    if (navigator?.clipboard?.writeText) {
-      try {
-        await navigator.clipboard.writeText(text)
-        return true
-      } catch (e) {
-        console.warn("Modern clipboard failed, trying mobile fallback...", e)
-      }
-    }
-
-    // 2. Mobile & HTTP Insecure Fallback (iOS Safari + Android Chrome compatible)
-    const textarea = document.createElement('textarea')
-    textarea.value = text
-    textarea.style.position = 'fixed'
-    textarea.style.top = '0'
-    textarea.style.left = '0'
-    textarea.style.opacity = '0'
-    textarea.style.pointerEvents = 'none'
-    
-    document.body.appendChild(textarea)
-    textarea.focus()
-    textarea.select()
-    
-    // 🔥 CRITICAL FOR IOS: Explicit selection range configuration
-    textarea.setSelectionRange(0, 99999)
-
-    try {
-      const copied = document.execCommand('copy')
-      document.body.removeChild(textarea)
-      return copied
-    } catch (err) {
-      console.error("Fallback copy execution failed", err)
-      document.body.removeChild(textarea)
-      return false
-    }
-  }
-
-  const copyInvite = async () => {
+  const copyInvite = () => {
     const url = getInviteUrl()
-    if (!url) return
     
-    // ⚡ Verify if the clipboard successfully registered the data
-    const success = await copyTextToClipboard(url)
-    if (success) {
-      toast.success(t("Invite link copied"))
+    if (navigator?.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(url)
+        .then(() => toast.success(t("Invite link copied")))
+        .catch(() => toast.error(t("Failed to copy link")))
     } else {
-      toast.error(t("Failed to copy link"))
+      const textArea = document.createElement("textarea")
+      textArea.value = url
+      textArea.style.position = "fixed"
+      textArea.style.left = "-999999px"
+      textArea.style.top = "-999999px"
+      document.body.appendChild(textArea)
+      textArea.focus()
+      textArea.select()
+      
+      try {
+        document.execCommand('copy')
+        toast.success(t("Invite link copied"))
+      } catch (error) {
+        toast.error(t("Failed to copy link"))
+      }
+      textArea.remove()
     }
   }
 
   // Convert ranked user into the props expected by ProfileTab
   const toProfileProps = (player: RankedUser) => {
+    // ⚡ Determine if this specific profile's picks should be hidden
+    const isHidden = !REVEAL_ALL_PICKS && !player.isCurrentUser
     const scorerNameAndFlag = player.scorerPick !== "Not selected"
       ? (() => {
           const separatorIndex = player.scorerPick.indexOf("__")
@@ -354,8 +332,13 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
       username: player.name.toUpperCase(),
       rank: player.rank,
       userPoints: player.points,
-        selectedWinner: player.winnerPick !== "🏳️" ? { code: player.winnerCode, name: "", flag: player.winnerPick } : null,
-      selectedScorer: scorerNameAndFlag ? { name: scorerNameAndFlag.name, team: scorerNameAndFlag.team, flag: scorerNameAndFlag.flag } : null,
+      // ⚡ Inject the "Locked" translation and lock emoji if hidden
+      selectedWinner: isHidden 
+        ? { code: t("Locked"), name: "", flag: "🔒" }
+        : player.winnerPick !== "🏳️" ? { code: player.winnerCode, name: "", flag: player.winnerPick } : null,
+      selectedScorer: isHidden
+        ? { name: t("Locked"), team: "", flag: "🔒" }
+        : scorerNameAndFlag ? { name: scorerNameAndFlag.name, team: scorerNameAndFlag.team, flag: scorerNameAndFlag.flag } : null,
       stats: { exactHits: player.exactHits, hits: (player as any).hits || 0, misses: (player as any).misses || 0 },
     }
   }
@@ -427,7 +410,8 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
             {/* Winner Pick Flag */}
             <div className="flex justify-center items-center">
               <span className="text-xl filter drop-shadow-sm select-none">
-                {friend.winnerPick}
+                {/* ⚡ Hides the flag with a lock emoji for other users if the switch is false */}
+                {friend.isCurrentUser || REVEAL_ALL_PICKS ? friend.winnerPick : "🔒"}
               </span>
             </div>
 

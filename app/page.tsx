@@ -226,6 +226,9 @@ export default function Page() {
             .single()
 
           if (data && !error) {
+            // ⚡ CRITICAL FIX: Tell Postgres who the user is on page refresh!
+            await supabase.rpc("set_current_user_id", { uid: data.user_id })
+            
             setUser(data)
             setView("dashboard")
           } else {
@@ -244,12 +247,24 @@ export default function Page() {
   const handleLogin = (userData: { user_id: number; username: string }) => {
     setUser(userData)
     localStorage.setItem("worldcup_user_new", JSON.stringify(userData))
+    
+    // ⚡ FIX: Clear any lingering URL hashes (like #profile) from previous sessions
+    if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", window.location.pathname)
+    }
+    
     setView("dashboard")
   }
 
   const handleLogout = () => {
     setUser(null)
     localStorage.removeItem("worldcup_user_new")
+    
+    // ⚡ FIX: Clean the URL so the next login starts completely fresh
+    if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", window.location.pathname)
+    }
+    
     setView("auth")
   }
 
