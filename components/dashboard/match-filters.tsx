@@ -33,7 +33,7 @@ export function MatchFilters({ activeFilter, onFilterChange }: MatchFiltersProps
             onClick={() => onFilterChange(filter.id)}
             className={cn(
               "px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 whitespace-nowrap flex-shrink-0",
-              filter.id === "group" && "ml-auto",
+              // Removed ml-auto to make the "Groups" button stick to the other filter buttons
               activeFilter === filter.id
                 ? "bg-primary text-primary-foreground shadow-lg shadow-primary/25"
                 : "bg-secondary text-muted-foreground border border-primary/40 hover:bg-secondary/80 hover:text-foreground"

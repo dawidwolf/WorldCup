@@ -1,8 +1,7 @@
-﻿"use client"
+﻿﻿"use client"
 
-import { LogOut, Shield, User, Info, ArrowUp, ArrowDown } from 'lucide-react'
-import { useState, useEffect, useRef } from 'react'
-import { supabase } from '@/lib/supabase'
+import { LogOut, Shield, Info, ArrowUp, ArrowDown } from 'lucide-react'
+import { useState } from 'react'
 import { useTournamentData } from '@/context/tournament-data-context'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { useHistoryLayer } from '@/hooks/use-history-layer'
@@ -56,13 +55,9 @@ export function ProfileTab({
   onNavigateToBonus,
   isPublicView = false,
 }: ProfileTabProps) {
-  const { language, setLanguage, t } = useTournamentData()
-  const [localStats, setLocalStats] = useState<{ exactHits: number; hits: number; misses: number } | null>(null)
-  const [userPointsLocal, setUserPointsLocal] = useState<number | null>(null)
-  const [userRankLocal, setUserRankLocal] = useState<number | null>(null)
+  const { language, setLanguage, t, userProfile, rankings, arrowState } = useTournamentData()
   const [showInvite, setShowInvite] = useState(false)
   const [invitePoolName, setInvitePoolName] = useState<string>("")
-  const poolIdRef = useRef<number | null>(pools[0]?.pool_id ?? null)
 
   const { closeWithHistory: closeInvite } = useHistoryLayer({
     layerId: `profile-invite-${currentUserId ?? username}`,
@@ -70,252 +65,13 @@ export function ProfileTab({
     onClose: () => setShowInvite(false),
   })
 
-  useEffect(() => {
-    let mounted = true
-    const fetchStats = async () => {
-      if (!currentUserId) return
-      try {
-          const { data, error } = await supabase
-            .from('users')
-            .select('exact_hits,hits_total,misses_total,points_total')
-            .eq('user_id', currentUserId)
-            .maybeSingle()
-
-        if (error) throw error
-        if (!mounted) return
-        if (data) {
-          setLocalStats({
-            exactHits: data.exact_hits || 0,
-            hits: data.hits_total || 0,
-            misses: data.misses_total || 0,
-          })
-          setUserPointsLocal(data.points_total || 0)
-          // compute rank within current pool if available
-          const pid = pools[0]?.pool_id ?? null
-          if (pid) {
-            computeRankForUser(pid)
-          }
-          // compute last-match deltas for small arrows
-          computeLastMatchDeltas(currentUserId, data)
-        }
-      } catch (err) {
-        console.error(t('Failed to fetch user stats'), err)
-      }
-    }
-
-    fetchStats()
-
-    // subscribe to realtime updates for this user to keep stats and points fresh
-    let channel: any = null
-    if (currentUserId) {
-      channel = supabase
-        .channel(`user-stats-${currentUserId}`)
-        .on(
-          'postgres_changes',
-          { event: 'UPDATE', schema: 'public', table: 'users', filter: `user_id=eq.${currentUserId}` },
-          (payload: any) => {
-            const n = payload.new
-            if (!n) return
-            setLocalStats({
-              exactHits: n.exact_hits || 0,
-              hits: n.hits_total || 0,
-              misses: n.misses_total || 0,
-            })
-            if (typeof n.points_total === 'number') setUserPointsLocal(n.points_total)
-            // recompute rank when our own row changed
-            const pid = pools[0]?.pool_id ?? null
-            if (pid) computeRankForUser(pid)
-            // recompute last-match deltas when user aggregates change
-            computeLastMatchDeltas(currentUserId, n)
-          }
-        )
-        .subscribe()
-    }
-
-    return () => {
-      mounted = false
-      if (channel) void supabase.removeChannel(channel)
-    }
-  }, [currentUserId, pools])
-
-  // Subscribe to score events so last-match delta arrows update instantly
-  useEffect(() => {
-    if (!currentUserId) return
-
-    const channel = supabase
-      .channel(`user-points-events-${currentUserId}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'user_points_events', filter: `user_id=eq.${currentUserId}` },
-        () => {
-          computeLastMatchDeltas(currentUserId)
-        }
-      )
-      .subscribe()
-
-    return () => void supabase.removeChannel(channel)
-  }, [currentUserId])
-
-  // Subscribe to pool-level user updates so our rank updates when others change
-  useEffect(() => {
-    const pid = pools[0]?.pool_id
-    if (!pid) return
-
-    poolIdRef.current = pid
-    const channel = supabase
-      .channel(`public:users:pool-${pid}`)
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'users' },
-        (payload: any) => {
-          const newRec = payload.new
-          const oldRec = payload.old
-          if (!newRec) return
-          // only care when points or exact_hits changed for anyone in the pool
-          const changed = oldRec && ((oldRec.points_total !== newRec.points_total) || (oldRec.exact_hits !== newRec.exact_hits))
-          if (!changed) return
-          computeRankForUser(pid)
-        }
-      )
-      .subscribe()
-
-    return () => void supabase.removeChannel(channel)
-  }, [pools])
-
-  // compute rank helper (mirror RankingsTab logic)
-  async function computeRankForUser(poolId: number) {
-    try {
-      const { data, error } = await supabase
-        .from('user_pools')
-        .select(`user_id, users (user_id, username, points_total, exact_hits)`) 
-        .eq('pool_id', poolId)
-
-      if (error) throw error
-
-      const transformed = (data || []).map((item: any) => {
-        const u = item.users
-        return {
-          id: u.user_id,
-          name: u.username,
-          points: u.points_total || 0,
-          exactHits: u.exact_hits || 0,
-        }
-      })
-
-      // sort
-      transformed.sort((a: any, b: any) => {
-        if (b.points !== a.points) return b.points - a.points
-        if (b.exactHits !== a.exactHits) return b.exactHits - a.exactHits
-        return a.name.localeCompare(b.name)
-      })
-
-      // compute competition ranks (ties share rank and next increments by tie size)
-      let currentRank = 1
-      let tieCount = 1
-      const out: any[] = []
-      for (let i = 0; i < transformed.length; i++) {
-        const u = transformed[i]
-        if (i === 0) {
-          out.push({ ...u, rank: currentRank })
-          tieCount = 1
-          continue
-        }
-        const prev = transformed[i - 1]
-        if (u.points === prev.points && u.exactHits === prev.exactHits) {
-          out.push({ ...u, rank: currentRank })
-          tieCount++
-        } else {
-          currentRank = currentRank + tieCount
-          tieCount = 1
-          out.push({ ...u, rank: currentRank })
-        }
-      }
-
-      const me = out.find((r) => r.id === currentUserId)
-      setUserRankLocal(me ? me.rank : 0)
-    } catch (err) {
-      console.error(t('Failed to compute rank for user'), err)
-    }
-  }
-
-  const [arrowState, setArrowState] = useState<{ hits: string; exact: string; misses: string; accuracy: string }>({ hits: 'none', exact: 'none', misses: 'none', accuracy: 'none' })
-
-  const computeLastMatchDeltas = async (userId: number, userRowData?: any) => {
-    try {
-      // find last finished match
-      const { data: lm } = await supabase
-        .from('matches')
-        .select('match_id')
-        .eq('is_finished', true)
-        .order('match_id', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-
-      const lastMatchId = lm?.match_id ?? null
-
-      // fetch all events for this user
-      const { data: events } = await supabase
-        .from('user_points_events')
-        .select('match_id,event_type')
-        .eq('user_id', userId)
-
-      if (!events) {
-        setArrowState({ hits: 'none', exact: 'none', misses: 'none', accuracy: 'none' })
-        return
-      }
-
-      const totals = { exact: 0, hits: 0, misses: 0 }
-      const before = { exact: 0, hits: 0, misses: 0 }
-
-      events.forEach((ev: any) => {
-        const t = ev.event_type
-        if (t === 'exact_hit') {
-          totals.exact += 1
-          if (ev.match_id !== lastMatchId) before.exact += 1
-        } else if (t === 'outcome_hit') {
-          totals.hits += 1
-          if (ev.match_id !== lastMatchId) before.hits += 1
-        } else if (t === 'miss') {
-          // treat anything else with zero points as miss
-          totals.misses += 1
-          if (ev.match_id !== lastMatchId) before.misses += 1
-        }
-      })
-
-      // if we have explicit userRowData, prefer those aggregates for current totals
-      const currentExact = userRowData?.exact_hits ?? totals.exact
-      const currentHits = userRowData?.hits_total ?? totals.hits
-      const currentMisses = userRowData?.misses_total ?? totals.misses
-
-      const beforeExact = before.exact
-      const beforeHits = before.hits
-      const beforeMisses = before.misses
-
-      const deltaExact = currentExact - beforeExact
-      const deltaHits = currentHits - beforeHits
-      const deltaMisses = currentMisses - beforeMisses
-
-      const totalAfter = currentExact + currentHits + currentMisses
-      const totalBefore = beforeExact + beforeHits + beforeMisses
-
-      const accAfter = totalAfter > 0 ? ((currentExact + currentHits) / totalAfter) : 0
-      const accBefore = totalBefore > 0 ? ((beforeExact + beforeHits) / totalBefore) : 0
-
-      const pick = (d: number) => (d > 0 ? 'up' : d < 0 ? 'down' : 'none')
-
-      setArrowState({
-        exact: pick(deltaExact),
-        hits: pick(deltaHits),
-        misses: pick(deltaMisses),
-        accuracy: accAfter > accBefore ? 'up' : accAfter < accBefore ? 'down' : 'none'
-      })
-    } catch (err) {
-      console.error(t('Failed to compute last-match deltas'), err)
-      setArrowState({ hits: 'none', exact: 'none', misses: 'none', accuracy: 'none' })
-    }
-  }
-
-  const displayStats = localStats ?? stats
+  const displayRank = isPublicView ? rank : (rankings.find(r => r.isCurrentUser)?.rank ?? 0);
+  const displayPoints = isPublicView ? userPoints : (userProfile?.points_total ?? 0);
+  const displayStats = isPublicView ? stats : {
+    exactHits: userProfile?.exact_hits ?? 0,
+    hits: userProfile?.hits_total ?? 0,
+    misses: userProfile?.misses_total ?? 0,
+  };
   const totalPredictions = displayStats.exactHits + displayStats.hits + displayStats.misses
   const accuracyRaw = totalPredictions > 0 ? ((displayStats.exactHits + displayStats.hits) / totalPredictions) * 100 : 0
   const accuracy = accuracyRaw.toFixed(1)
@@ -366,9 +122,9 @@ export function ProfileTab({
           {username.toUpperCase()}
         </span>
         <div className="text-right flex items-center gap-2 shrink-0">
-          <p className="text-lg font-bold text-primary">#{userRankLocal ?? rank}</p>
+          <p className="text-lg font-bold text-primary">#{displayRank}</p>
           <span className="text-muted-foreground text-sm">|</span>
-          <p className="text-sm text-muted-foreground">{(userPointsLocal ?? userPoints) || 0} {t("pts")}</p>
+          <p className="text-sm text-muted-foreground">{displayPoints || 0} {t("pts")}</p>
         </div>
       </button>
 

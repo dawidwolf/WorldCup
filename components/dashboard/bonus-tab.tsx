@@ -1,8 +1,6 @@
 import { useRef, useState, useEffect } from "react"
 import { Search, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { useBonus } from "@/hooks/use-bonus"
-import type { DBTeam, DBPlayer } from "@/hooks/use-bonus"
 import { Spinner } from "@/components/ui/spinner"
 import { getFlag } from "@/lib/flags"
 import { toast } from "sonner"
@@ -15,8 +13,18 @@ interface BonusTabProps {
 }
 
 export function BonusTab({ currentUserId, onSaved }: BonusTabProps) {
-  const { teams, players, savedWinnerId, savedScorerId, goldenBootLeaders, isLocked, loading, saveWinner, saveScorer } = useBonus(currentUserId)
-  const { t } = useTournamentData()
+  const {
+    teams,
+    players,
+    userProfile,
+    isBonusLocked,
+    isLoading: loading,
+    updateBonusPick,
+    t,
+  } = useTournamentData()
+
+  const savedWinnerId = userProfile?.predicted_tournament_winner_id ?? null
+  const savedScorerId = userProfile?.predicted_top_scorer_id ?? null
   const winnerInputRef = useRef<HTMLInputElement | null>(null)
   const scorerInputRef = useRef<HTMLInputElement | null>(null)
   const winnerCardRef = useRef<HTMLDivElement | null>(null)
@@ -77,8 +85,8 @@ export function BonusTab({ currentUserId, onSaved }: BonusTabProps) {
     player.player_name.toLowerCase().includes(scorerSearch.toLowerCase())
   )
 
-  const renderBadge = (hasSelection: boolean, locked: boolean) => {
-    if (locked) {
+  const renderBadge = (hasSelection: boolean) => {
+    if (isBonusLocked) {
       if (hasSelection) {
         return (
           <span className="bg-muted px-2 py-1 rounded-md text-xs font-medium text-muted-foreground flex items-center gap-1">
@@ -109,8 +117,8 @@ export function BonusTab({ currentUserId, onSaved }: BonusTabProps) {
     )
   }
 
-  const winnerCanEdit = !isLocked
-  const scorerCanEdit = !isLocked
+  const winnerCanEdit = !isBonusLocked
+  const scorerCanEdit = !isBonusLocked
 
   const scrollToDefaultPosition = () => {
     if (typeof window === "undefined") return
@@ -128,7 +136,7 @@ export function BonusTab({ currentUserId, onSaved }: BonusTabProps) {
           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
             {t("Predict Winner")}
           </h3>
-          {renderBadge(!!localWinnerId, isLocked)}
+          {renderBadge(!!localWinnerId)}
         </div>
         <div className="relative">
           <div className="relative">
@@ -160,7 +168,7 @@ export function BonusTab({ currentUserId, onSaved }: BonusTabProps) {
             />
             <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
           </div>
-          {showWinnerDropdown && !isLocked && filteredTeams.length > 0 && (
+          {showWinnerDropdown && !isBonusLocked && filteredTeams.length > 0 && (
             <div className="absolute top-full left-0 right-0 mt-2 bg-card rounded-xl border border-border/50 shadow-xl overflow-hidden z-10 max-h-60 overflow-y-auto">
               {filteredTeams.map((team) => (
                 <button
@@ -169,8 +177,8 @@ export function BonusTab({ currentUserId, onSaved }: BonusTabProps) {
                     e.preventDefault()
                     winnerInputRef.current?.blur()
                   }}
-                    onClick={async () => {
-                    const result = await saveWinner(team.team_id)
+                  onClick={async () => {
+                    const result = await updateBonusPick('winner', team.team_id)
                     if ((result as any)?.error) {
                       toast.error(t('Failed to save winner pick'))
                       return
@@ -198,7 +206,7 @@ export function BonusTab({ currentUserId, onSaved }: BonusTabProps) {
           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
             {t("Predict Top Scorer")}
           </h3>
-          {renderBadge(!!localScorerId, isLocked)}
+          {renderBadge(!!localScorerId)}
         </div>
         <div className="relative">
           <div className="relative">
@@ -230,7 +238,7 @@ export function BonusTab({ currentUserId, onSaved }: BonusTabProps) {
             />
             <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
           </div>
-          {showScorerDropdown && !isLocked && filteredPlayers.length > 0 && (
+          {showScorerDropdown && !isBonusLocked && filteredPlayers.length > 0 && (
             <div className="absolute top-full left-0 right-0 mt-2 bg-card rounded-xl border border-border/50 shadow-xl overflow-hidden z-10 max-h-60 overflow-y-auto">
               {filteredPlayers.map((player) => {
                 const teamInfo = getPlayerTeamInfo(player.team_id)
@@ -242,7 +250,7 @@ export function BonusTab({ currentUserId, onSaved }: BonusTabProps) {
                       scorerInputRef.current?.blur()
                     }}
                     onClick={async () => {
-                      const result = await saveScorer(player.player_id)
+                      const result = await updateBonusPick('scorer', player.player_id)
                       if ((result as any)?.error) {
                         toast.error(t('Failed to save top scorer pick'))
                         return
@@ -281,7 +289,7 @@ export function BonusTab({ currentUserId, onSaved }: BonusTabProps) {
         <div className="space-y-2">
           {(() => {
             // 1. Create a copy and sort dynamically: Goals descending, then player_id ascending
-            const sortedLeaders = [...goldenBootLeaders].sort((a, b) => {
+            const sortedLeaders = [...players].sort((a, b) => {
               const goalsA = a.goals ?? 0
               const goalsB = b.goals ?? 0
               

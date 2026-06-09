@@ -309,8 +309,8 @@ const hu: Dictionary = {
   "10 pts": "10 pont",
 
   // ── BONUS TAB ─────────────────────────────────────────────
-  "Predict Winner": "Győztes csapat",
-  "Predict Top Scorer": "Gólkirály",
+  "Predict Winner": "Tippelj Bajnokot",
+  "Predict Top Scorer": "Tippelj Gólkirályt",
   "Search team...": "Csapat keresése...",
   "Search player...": "Játékos keresése...",
   "Locked": "Lezárva",

@@ -1,15 +1,16 @@
 
 # PROJECT MASTER PLAN & SPECIFICATION: SOCCER PREDICTION APP
 
-This document serves as the absolute single source of truth for the application. It maps out both the non-technical game rules and the precise technical blueprints. I will constantly update and populate each section with specific ideas, rules, logic, and constants so that AI assistants (like GitHub Copilot) can implement them perfectly without breaking the existing UI. The entire project is being built by vibe coding, thats the reason for this file.
+This document serves as the absolute single source of truth for the application. It maps out both the non-technical game rules and the precise technical blueprints. It has been automatically updated to reflect the current state of the codebase, ensuring that AI assistants can implement new features perfectly without breaking existing logic.
 
 The rules and logistics of the 2026 FIFA World Cup are described in the FIFA_rules.md file.
 
 ---
 
 ## 1. PROJECT OVERVIEW & CORE GOALS
-This is a soccer predictor web app for the 2026 FIFA World Cup. The codebase is Next.js + TypeScript, uses Supabase for storage and auth, and targets mobile-first UI with Tailwind CSS. The project aims to be a lightweight PWA deployable to Vercel and is built for friendly pools rather than commercial scale.
-Users register or log in, join a pool, and land on the Matches tab where they submit predictions. Before tournament start users set their tournament `winner` and `top scorer` picks in the Bonus tab. The app preserves sessions, shows leaderboard and stats, and uses Supabase realtime where it improves the live UI.
+This is a soccer predictor web app for the 2026 FIFA World Cup. The codebase is Next.js + TypeScript, uses Supabase for storage and auth, and targets mobile-first UI with Tailwind CSS. The project is a lightweight PWA deployed to Vercel and is built for friendly pools rather than commercial scale.
+
+The application's state is managed centrally by a `TournamentDataProvider`. This provider caches all essential data (matches, predictions, user profiles, etc.), handles Supabase realtime subscriptions, and exposes methods for data manipulation, ensuring a consistent and reactive user experience across all components.
 
 ### 1.1 Project Statement & Purpose
 - **What is the primary goal of this application?** 
@@ -76,7 +77,7 @@ Modal overlays and searchable dropdowns use browser-history-backed dismissal, so
   - *1.: "Coming up": a yellow/amber box saying "coming up"* -> upcoming matches more than 24 hours away from kickoff are in this state. Users can still predict, and once they enter a valid score the status changes to "Saved".
   - *2.: "Closes soon": a red warning* -> if a match is within 24 hours of kickoff and the user has not predicted it yet, the card shows "Closes soon" to warn them that the deadline is close.
    - *3.: "Saved": a green "saved" with a tick check* -> if the match has not started yet and the user has already put in a valid prediction, the status is "Saved". In this status, users can still change their predictions before kickoff. **Deletion Logic:** If a user clears both score inputs (home and away), the prediction is deleted from the database. If only one input is cleared, the value is treated as `0` for the database record to satisfy the `NOT NULL` constraint, while the UI remains empty for the user.
-  - *4.: "Live": the match started but has not finished yet* -> once the API marks the match live (`LIVE`, `1H`, `2H`, `ET`, or `PEN`) the card becomes read-only. The prediction is visible, the inputs are greyed out, and the score can no longer be changed.
+  - *4.: "Live": the match started but has not finished yet* -> once the API marks the match live (`LIVE`, `1H`, `2H`, `ET`, or `PEN`) the card becomes read-only. The prediction is visible, the inputs are greyed out, and the score can no longer be changed. The current live score is displayed.
   - *5.: "Finished": Match Completed* -> after the match is finished (`is_finished` or `FT`), the card is read-only in grey and the final score is shown on the card. **Missing Data Fallback:** If a match is finished but the user did not submit a prediction, the card displays "No prediction submitted" instead of an error or empty points.
   - *Live/Finished footer line:* Live and finished cards always render an inline footer line under the score area. The footer reads `You predicted: X:Y. Tap to see predictions.` when a prediction exists, or `No prediction submitted. Tap to see predictions.` when it does not. The tap hint must stay on the same line as the prediction text, not below it. For finished matches, the points badge remains on the right side of the footer.
 
@@ -85,10 +86,10 @@ Modal overlays and searchable dropdowns use browser-history-backed dismissal, so
   - **Fetch Logic:** Data is fetched from `pool_predictions_view`, filtered by `match_id` and `pool_id`.
   - **Display:** Shows the predictor's name and their predicted score.
   - **Current User Label:** In the list, the currently logged-in user is marked inline as `(You)` next to their name.
-  - **Live Empty State:** If the match is currently live and there are no predictions yet, the modal displays `No predictions` instead of the generic empty CTA.
+  - **Live Empty State:** If the match is currently live and there are no predictions yet, the modal displays "No predictions" instead of an empty list.
   - **Finished Match Highlights:** If the match is finished, a visual badge reveals the points earned for that exact guess:
-    - **Green Badge (+3 PTS):** Exact score hit.
-    - **Blue Badge (+1 PT):** Outcome hit (winner/draw).
+    - **Green Badge (+5 PTS):** Exact score hit.
+    - **Blue Badge (+2 or +3 PTS):** Outcome or Goal Difference hit.
     - **Gray Badge (0 PTS):** No points earned.
 
   - **Empty State:** The modal no longer injects demo data. If the fetched list is empty it displays a centered empty state: "No predictions".
@@ -99,7 +100,6 @@ Modal overlays and searchable dropdowns use browser-history-backed dismissal, so
   - 'All Matches': this is the default one which is active when users load the website. this displays all matches as already described. 
   - 'Today': here only the matches of the current day are displayed, and also the matches of the next day, with the same cards. so this is a filter that filters by time. (order her is: a text saying"Today" the top card is the first match of the day, then second and so on, then the last game of the day, then a separator line with a text saying "Tomorrow" and then the first game of tomorrow and so on, th last one is the last game of tomorrow.)
   - 'Groups': show all 12 groups as square cards. In mobile view, show two cards per row (six rows total). Each card displays the group letter, GD and PTS, and the four teams with their points and goal difference. Horizontal thin lines separate rows. Tapping a group card opens the group's match list and shows a back arrow to return to the groups overview.
-  - 'Knockouts': shows all non-group-stage matches in kickoff order. It is a simple filtered list, not a separate knockout layout.
 
 ### 2.3 Bonus Tab (image_70bc6d.png Reference)
   In this tab there are three cards with the same width as match cards. The first is "Predict Winner" where users choose a team. The second is "Predict Top Scorer" where users choose a player. The third is a live Golden Boot leaderboard (top scorers). The app includes a `use-bonus` hook to fetch teams, players, saved picks, the tournament lock time, and the live scorer list, then persist picks to the `users` table through RPCs.
@@ -131,13 +131,13 @@ The Profile tab serves as the user's personal dashboard and management center. I
    - A "Leave" button on each row allows users to exit a pool. (Admin check applies: a lone admin cannot leave without promoting another or deleting the pool).
 5. **Global Info Card:** A small highlighted card stating: "Your match predictions are global and apply to every pool you belong to — you only need to predict once." (This card ONLY appears if the user is part of more than one pool).
 6. **Official Rules Card:** A detailed card listing the scoring system, deadlines, and point distribution.
-  **The Rules card exact text:**
-  - 3 points for predicting the exact score
-  - 1 point for predicting the correct winner
-  - 10 points for predicting the tournament winner
-  - 10 points for predicting the top scorer
-  - Match predictions lock exactly at kickoff
-  - Scores update after matches
+  **The Rules card exact text (reflecting current implementation):**
+  - **5 points** for the exact score
+  - **3 points** for the correct winner and goal difference
+  - **2 points** for the correct winner
+  - **10 points** for the tournament winner
+  - **10 points** for the top scorer
+  - Match predictions lock exactly at kickoff. Every prediction can be changed until its deadline. Scores update after matches.
 
 7. **Logout Button:** A prominent red button at the bottom to end the session.
 
@@ -178,8 +178,8 @@ Important: predictions are tied to the global `users` identity (one prediction p
 ### 4.1 LocalStorage Key Structure & Session Management
 - **Session Identification:** User logs in once and their session is persisted. The browser remembers them so they stay logged in across sessions.
 - **Session Setup & RLS:** After successful authentication (login or signup), the `setCurrentUserSession(userId)` RPC is called. This function executes `set_current_user_id` SECURITY DEFINER RPC which stores the user ID in a Postgres session variable (`app.current_user_id`). This variable is required by RLS policies to determine row access. Without this setup step at auth time, subsequent HTTP requests would fail RLS checks.
-- **LocalStorage keys:** The authenticated user is stored in `wc2026_user`, and the active pool is stored per-user under `wc2026_active_pool_id_<userId>` so pool selection survives refreshes.
-- **App Guard / Routing Flow Logic:** 
+- **LocalStorage keys:** The authenticated user is stored in `worldcup_user_new`, and the active pool is stored per-user under `wc2026_active_pool_id_<userId>` so pool selection survives refreshes.
+- **App Guard / Routing Flow Logic:**
   1. If no session: Force the Login/Sign-up screen.
   2. If session exists but no pool is selected: Force the Pools screen (Join/Create/Select).
   3. Once a pool is selected: Load the main Dashboard (Matches/Bonus/Rankings/Profile).
@@ -219,7 +219,7 @@ The application communicates with the database via the [lib/supabase.ts](lib/sup
 
 ### 5.3 Realtime Configuration
 Realtime publishing is configured and used by the client. The app subscribes to `users` updates for leaderboard and profile refreshes, to `user_points_events` for per-user deltas, to `matches` and `standings` for live card/group updates, and to `predictions` inside the predictions modal so friends' picks refresh instantly while the modal stays open. The `player_stats` subscription keeps the Golden Boot leaderboard live. Confirm that your Supabase realtime publication includes `users`, `user_points_events`, `matches`, `standings`, `predictions`, and `player_stats` so the UI stays synchronized.
-
+The `TournamentDataProvider` centralizes all these subscriptions.
 ### 5.4 Automated Data Synchronization (API-Football)
 To achieve the goal of "zero manual work," the system syncs with **API-Football** as the authoritative source of truth for tournament progress.
 - **Sync Timing:** Updates are triggered automatically after every match completion (and periodically during live windows).
@@ -264,10 +264,13 @@ point evaluations based on predictions vs actual scores. After every match, poin
 
 ### 7.1 Point System Matrix
 - **Exact Score Hit:** +3 Points (Predicted 2-1, Game ended 2-1)
-- **Outcome Hit (Winner/Draw):** +1 Point (Predicted 1-0, Game ended 2-1; or Predicted 1-1, Game ended 0-0)
+- **Outcome Hit (Winner/Draw):** +1 Point (Predicted 1-0, Game ended 2-1; or Predicted 1-1, Game ended 0-0) **[DEPRECATED]**
 - **Tournament Winner Pick:** +10 Points (Correctly picked the overall champion before kickoff)
 - **Top Scorer Pick:** +10 Points (Correctly picked the golden boot winner before kickoff)
-
+- **Current Point System:**
+  - **Exact Score Hit:** +5 Points (e.g., Predicted 2-1, Actual 2-1)
+  - **Goal Difference Hit:** +3 Points (e.g., Predicted 2-0, Actual 3-1)
+  - **Outcome Hit (Winner/Draw):** +2 Points (e.g., Predicted 1-0, Actual 3-0)
 - Current implementation note: the production scoring path is `public.process_match_conclusion(p_match_id bigint, p_source text DEFAULT 'API-Sync')` with the `trg_on_match_finalized` trigger on `public.matches`. It writes exact/outcome/miss ledger rows, refreshes `users.points_total`, `exact_hits`, `hits_total`, and `misses_total` from the ledger, and rebuilds group standings from finished group-stage matches.
 - The earlier one-argument `process_match_scoring(match_id)` flow is legacy; the database now uses the ledger-first `process_match_conclusion` pipeline as the authoritative scoring engine.
 
@@ -293,8 +296,8 @@ This section lists the exact production tables as they exist in Supabase. All pr
 - `predicted_top_scorer_id` (integer, FK → `player_stats.player_id`, nullable)
 - `points_total` (integer, default 0)
 - `exact_hits` (integer, default 0)
-- `hits_total` (integer, default 0)
-- `misses_total` (integer, default 0)
+- `hits_total` (integer, default 0, nullable)
+- `misses_total` (integer, default 0, nullable)
 - `late_winner_penalty` (boolean, default FALSE)
 - `late_scorer_penalty` (boolean, default FALSE)
 - `created_at` (timestamptz, default now())
@@ -310,7 +313,7 @@ This section lists the exact production tables as they exist in Supabase. All pr
 - `user_id` (integer, FK → `users.user_id`)
 - `pool_id` (integer, FK → `pools.pool_id`)
 - `role` (text, default 'member')
-- `is_admin` (boolean, default false)
+- `is_admin` (boolean, default false, nullable)
 - `joined_at` (timestamptz, default now())
 - *Constraint:* `UNIQUE(user_id, pool_id)`
 
@@ -345,8 +348,8 @@ This section lists the exact production tables as they exist in Supabase. All pr
 - `prediction_id` (integer, Primary Key)
 - `user_id` (integer, FK → `users.user_id`)
 - `match_id` (bigint, FK → `matches.match_id`)
-- `predicted_home_score` (integer, default 0, >= 0)
-- `predicted_away_score` (integer, default 0, >= 0)
+- `predicted_home_score` (integer, NOT NULL)
+- `predicted_away_score` (integer, NOT NULL)
 - `created_at` (timestamptz, default now())
 - `updated_at` (timestamptz, default now())
 - `version` (integer, default 1)
@@ -416,11 +419,13 @@ This section lists the exact production tables as they exist in Supabase. All pr
 - **Rule 2 (Incremental Coding):** Work on one single file or one single feature tab implementation at a time. Never move to the next file until all TypeScript compile problems display an absolute count of 0.
 - **Rule 3 (The Code Context Rule):** Before prompting Copilot to build out a data binding step, paste this master plan documentation context or reference this file to ensure structural alignment.
 
-### 9.2 Recent Codebase Conventions
+### 9.2 Current Codebase Conventions
+- **State Management:** The app uses a central `TournamentDataProvider` for caching data, managing realtime subscriptions, and providing state update methods. Components should consume this context where possible.
 - `getAppTime()` is the preferred time source for deterministic behavior; migrating all remaining `new Date()` usages is a pending task.
 - Authentication uses a custom `users` table with a numeric `user_id` and 4-digit `pin`; the UI now trims and case-normalizes usernames at register/login.
 - Pool names are trimmed and matched case-insensitively when joining; ambiguous matches are rejected.
 - Prediction deletion: clearing both inputs deletes the row; clearing one input persists `0` in DB while the UI shows `null` for emptiness.
+- **Architectural Inconsistencies:** There is some feature duplication between the central `TournamentDataProvider` and older, component-specific hooks/data fetching. For example, `BonusTab` uses its own `use-bonus` hook for data fetching and saving, and `RankingsTab` and `ProfileTab` manage their own realtime subscriptions, separate from the provider. These components should be refactored to use the central provider for a cleaner architecture.
 
 ---
 
@@ -433,6 +438,7 @@ This section lists the exact production tables as they exist in Supabase. All pr
 - [x] **Checkpoint 4: Authentication Flow.** Implementation of the Login/Register/Pool joining logic (PWA-friendly) with 4-digit Passcode.
 - [x] **Checkpoint 5: Match Prediction Logic.** Components for score input with deadline guards and color-coded status badges. (UI-level guards implemented; also now backed by DB trigger enforcement.)
 - [x] **Checkpoint 6: Scoring & Leaderboards.** Automated point calculation logic is now live in the database via `public.process_match_conclusion` and the `trg_on_match_finalized` trigger. It updates the ledger, user aggregates, and group standings after finalized matches.
+- [x] **Checkpoint 6.5: Central State Management.** A `TournamentDataProvider` has been implemented to cache all tournament data, manage realtime subscriptions, and provide a single source of truth for the UI.
 - [x] **Checkpoint 7: Pool-Filtered Predictions Modal.** Implemented logic to view friends' predictions for a specific match, filtered by the active pool, with visual point badges for finished matches.
 - [x] **Checkpoint 8: PWA Setup.** Service workers, manifest, install metadata, and mobile app icons are configured for home screen installation.
 - [x] **Schema & Connectivity:** Tables and `lib/supabase.ts` are present and used by the app.
@@ -457,58 +463,6 @@ This section lists the exact production tables as they exist in Supabase. All pr
 - [x] **Session Setup at Auth Entry Points:** `setCurrentUserSession(userId)` RPC is called at successful login/signup (in auth-screen.tsx) and after checkAuth() restores session from localStorage (in app/page.tsx). Sets Postgres session variable (`app.current_user_id`) for RLS policies to work correctly.
 - [x] **Scoring Engine Deployment:** The database scoring engine is now deployed as a trigger-driven ledger-first pipeline, and the standings rebuild path is aligned with finished group-stage matches.
 - [ ] **Admin Dashboard:** Not implemented. Special admin account (Admin01) with hidden dashboard for editing match scores, deleting pools, and kicking users remains to be added.
-
-## 11. RECENT IMPLEMENTATION CHANGES (AUTO-UPDATE)
-
-Last updated: 2026-06-05
-
-This section records code changes made after the baseline plan above so the documentation matches the repository state.
-
-- Added a centralized data caching provider: `context/tournament-data-context.tsx` (TournamentDataProvider).
-  - Single source-of-truth for matches, predictions, userProfile, standings, teams, players, pools, rankings, activePoolId.
-  - Hydrates on mount via parallelized fetches (`Promise.all`) and exposes `refreshData`, `updatePrediction`, `updateBonusPick`, and `setActivePool` helpers.
-  - Consolidated Supabase realtime subscriptions into the provider to avoid per-component `supabase.from()` listeners.
-
-- Wired multiple components to consume the provider instead of calling Supabase directly where possible:
-  - `components/dashboard/matches-tab.tsx` now reads matches/standings/predictions from the provider (local UI layout preserved).
-  - `hooks/use-bonus.ts` and `components/dashboard/bonus-tab.tsx` updated to use provider-backed data and fixed nullability issues.
-
-- Restored exact committed UI for the following files to preserve visual fidelity (restores came from `git show HEAD`):
-  - `components/dashboard/rankings-tab.tsx` (exact HEAD restored)
-  - `components/dashboard/profile-tab.tsx` (exact HEAD restored)
-  - `components/auth/pools-screen.tsx` (exact HEAD restored)
-  These files were reconciled with the provider wiring in `app/page.tsx` so they compile while keeping identical markup and styles.
-
-- TypeScript/DX fixes applied without altering UIs:
-  - Tightened types and nullability across several files to reach zero TypeScript errors (strict mode).
-  - Example fixes: `components/dashboard/bonus-tab.tsx` (nullable flags/ids guarded), `components/dashboard/bottom-nav.tsx` (typed `navItems` to `DashboardTab`).
-  - Used cautious casts for external RPC results where necessary to avoid changing visual flows.
-
-- Minor UI spacing tweak in `components/auth/pools-screen.tsx`:
-  - Parent `space-y-4` → `space-y-2` and `TabsContent` top margin `mt-6` → `mt-2` to reduce the vertical gap between the "Your Pools" list and the Join/Create cards. This is a small non-functional visual spacing change requested by the owner.
-
-- Realtime and optimistic update behavior:
-  - The provider performs optimistic UI updates for predictions and bonus picks, then finalizes state based on RPC/Realtime confirmations.
-  - Realtime channels now emit consolidated updates consumed by the provider and propagated to subscribers.
-
-- Tests & diagnostics:
-  - Ran TypeScript diagnostics after changes; current state: No TypeScript errors.
-  - No automated unit/integration tests were added in this change set.
-
-- Files added/updated (non-exhaustive list):
-  - Added: `context/tournament-data-context.tsx`
-  - Updated: `app/page.tsx`, `components/dashboard/matches-tab.tsx`, `components/dashboard/bonus-tab.tsx`, `components/dashboard/bottom-nav.tsx`, `hooks/use-bonus.ts`, `components/auth/pools-screen.tsx`, plus other small adapter edits to reconcile types.
-
-Notes and next actions
-- Several restored UI files still contain local Supabase queries by design to preserve exact UI behavior; these can be incrementally adapted to read from the provider without changing markup if desired. The provider already exposes the necessary methods and data shapes.
-- Remaining larger refactor tasks (not yet done):
-  - Full migration of all files to read exclusively from `TournamentDataProvider` (some pages intentionally left with original per-component queries to preserve exact visual/behavioural parity).
-  - Complete migration to `getAppTime()` (see §6.1) across all remaining components.
-  - Add automated tests for provider behavior and realtime event handling.
-
-If you want, I can now:
-- convert the restored `Rankings`/`Profile`/`Pools` pages to consume provider data under the hood while keeping identical markup (non-visual adapter changes only), or
-- start a focused migration sprint to remove all remaining per-component `supabase.from()` calls and record the progress here.
 
 
 ### 10.1 Technical environment

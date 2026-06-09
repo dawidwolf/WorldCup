@@ -1,13 +1,12 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { cn } from "@/lib/utils"
 import {
   Dialog,
   DialogContent,
 } from "@/components/ui/dialog"
 import { ProfileTab } from "./profile-tab"
-import { supabase } from "@/lib/supabase"
 import { getFlag } from "@/lib/flags"
 import { Spinner } from "@/components/ui/spinner"
 import { toast } from "sonner"
@@ -20,31 +19,19 @@ interface RankingsTabProps {
   currentUserId?: number
 }
 
-interface RankedUser {
-  rank: number
-  id: number
-  name: string
-  winnerPick: string
-  winnerCode: string
-  scorerPick: string
-  exactHits: number
-  hits?: number
-  misses?: number
-  points: number
-  isCurrentUser: boolean
-}
+type RankedUser = import("@/context/tournament-data-context").RankedUser
 
 export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProps) {
   // Add a comment to trigger re-save
-  const { t } = useTournamentData()
+  const { t, rankings, isLoading, pools, activePoolId, players, teams } = useTournamentData()
   const REVEAL_ALL_PICKS = false // ⚡ Set to true to reveal all picks and test the profile modal without needing multiple accounts
-  const [users, setUsers] = useState<RankedUser[]>([])
-  const [loading, setLoading] = useState(true)
   const [selectedPlayer, setSelectedPlayer] = useState<null | any>(null)
-  const [isAdmin, setIsAdmin] = useState(false)
   const [showInvite, setShowInvite] = useState(false)
-  const [highlightId, setHighlightId] = useState<number | null>(null)
 
+  const users = rankings
+  const loading = isLoading
+  const isAdmin = pools.find(p => p.pool_id === activePoolId)?.is_admin ?? false
+  
   const { closeWithHistory: closeInvite } = useHistoryLayer({
     layerId: `rankings-invite-${poolId}`,
     isOpen: showInvite,
@@ -57,231 +44,6 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
     onClose: () => setSelectedPlayer(null),
   })
 
-  useEffect(() => {
-    if (poolId) {
-      fetchRankings()
-    }
-  }, [poolId, currentUserId])
-
-  // Subscribe to realtime user updates and update local leaderboard entries
-  useEffect(() => {
-    if (!poolId) return
-
-    const channel = supabase
-      .channel(`public:users:pool-${poolId}`)
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "users" },
-        (payload) => {
-          const newRec = payload.new as any
-          if (!newRec) return
-
-          const oldRec = payload.old as any
-
-          // Act when points, exact_hits or predicted_tournament_winner_id changed
-          const changedPointsOrHits = oldRec && (
-            (oldRec.points_total !== newRec.points_total) ||
-            (oldRec.exact_hits !== newRec.exact_hits)
-          )
-          const changedWinner = oldRec && (oldRec.predicted_tournament_winner_id !== newRec.predicted_tournament_winner_id)
-          if (!changedPointsOrHits && !changedWinner) return
-
-          ;(async () => {
-            let newFlag: string | undefined
-            let newCode: string | undefined
-            if (changedWinner) {
-              if (newRec.predicted_tournament_winner_id) {
-                try {
-                  const { data: team } = await supabase
-                    .from("teams")
-                    .select("team_flag, abbreviation, team_name")
-                    .eq("team_id", newRec.predicted_tournament_winner_id)
-                    .single()
-                  newFlag = getFlag(team?.team_flag ?? team?.abbreviation ?? undefined) || "🏳️"
-                  newCode = team?.abbreviation || ""
-                } catch (e) {
-                  newFlag = "🏳️"
-                  newCode = ""
-                }
-              } else {
-                newFlag = "🏳️"
-                newCode = ""
-              }
-            }
-
-            setUsers((prev) => {
-                 const idx = prev.findIndex((u) => String(u.id) === String(newRec.user_id))
-              if (idx === -1) return prev
-
-              const updated = [...prev]
-              updated[idx] = {
-                ...updated[idx],
-                points: newRec.points_total || 0,
-                exactHits: newRec.exact_hits || 0,
-                ...(changedWinner ? { winnerPick: newFlag, winnerCode: newCode || "" } : {}),
-              }
-
-              // visually highlight when points/ hits change
-              if (changedPointsOrHits) {
-                setHighlightId(newRec.user_id)
-                setTimeout(() => setHighlightId(null), 1200)
-              }
-
-              return computeRanks(sortUsers(updated))
-            })
-          })()
-        }
-      )
-      .subscribe()
-
-    return () => {
-      void supabase.removeChannel(channel)
-    }
-  }, [poolId])
-
-  const fetchRankings = async () => {
-    if (!poolId) {
-      setUsers([])
-      setLoading(false)
-      return
-    }
-
-    setLoading(true)
-    try {
-      const { data, error } = await supabase
-        .from("user_pools")
-        .select(`
-          user_id,
-          is_admin,
-          users (
-            user_id,
-            username,
-            points_total,
-            exact_hits,
-            hits_total,
-            misses_total,
-            predicted_tournament_winner_id,
-            predicted_top_scorer_id,
-            teams:predicted_tournament_winner_id (
-              team_name,
-              team_flag,
-              abbreviation
-            ),
-            player_stats:predicted_top_scorer_id (
-              player_name,
-              teams (
-                team_flag,
-                abbreviation,
-                team_name
-              )
-            )
-          )
-        `)
-        .eq("pool_id", poolId)
-
-      if (error) throw error
-
-      const rows = Array.isArray(data) ? data : []
-
-      // Check if current user is admin
-      const currentUserData = rows.find((item: any) => String(item.user_id) === String(currentUserId))
-      setIsAdmin(currentUserData?.is_admin || false)
-
-      // Transform and sort
-      const transformed: any[] = rows
-        .map((item: any) => {
-          const u = item.users
-          if (!u) return null
-          return {
-            id: u.user_id,
-            name: String(u.username || "").toUpperCase(),
-            points: u.points_total || 0,
-            exactHits: u.exact_hits || 0,
-            hits: u.hits_total || 0,
-            misses: u.misses_total || 0,
-            winnerPick: getFlag(u.teams?.team_flag || u.teams?.abbreviation) || "🏳️",
-            winnerCode: u.teams?.abbreviation || "",
-            scorerPick: u.player_stats ? `${u.player_stats.player_name}__${getFlag(u.player_stats.teams?.team_flag || u.player_stats.teams?.abbreviation) || '⚽'}` : "Not selected",
-               isCurrentUser: String(u.user_id) === String(currentUserId)
-          }
-        })
-        .filter(Boolean)
-
-      // Sort and compute competition-style ranks (ties share same rank; next rank skips by tie size)
-      const sorted = sortUsers(transformed)
-      const ranked = computeRanks(sorted)
-      setUsers(ranked)
-    } catch (err: any) {
-      console.error("Error fetching rankings:", err)
-      toast.error("Failed to load rankings")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // Helper: sort by points desc, exactHits desc, name asc
-  function sortUsers(arr: any[]) {
-    return arr.slice().sort((a, b) => {
-      if (b.points !== a.points) return b.points - a.points
-      if (b.exactHits !== a.exactHits) return b.exactHits - a.exactHits
-      return a.name.localeCompare(b.name)
-    })
-  }
-
-  // Helper: compute competition ranking where ties share rank and next rank increments by tie size
-  function computeRanks(sorted: any[]) {
-    const out: any[] = []
-    let currentRank = 1
-    let tieCount = 1
-
-    for (let i = 0; i < sorted.length; i++) {
-      const u = sorted[i]
-      if (i === 0) {
-        out.push({ ...u, rank: currentRank })
-        tieCount = 1
-        continue
-      }
-
-      const prev = sorted[i - 1]
-      if (u.points === prev.points && u.exactHits === prev.exactHits) {
-        // same tie group
-        out.push({ ...u, rank: currentRank })
-        tieCount++
-      } else {
-        currentRank = currentRank + tieCount
-        tieCount = 1
-        out.push({ ...u, rank: currentRank })
-      }
-    }
-
-    return out
-  }
-
-  const openProfile = (player: RankedUser) => setSelectedPlayer(player)
-  const closeSelectedPlayer = () => setSelectedPlayer(null)
-
-  const getRankBadgeClassName = (rank: number, points: number) => {
-    if (points <= 0) {
-      return "bg-muted/60 text-muted-foreground border border-border/50"
-    }
-
-    if (rank === 1) {
-      return "bg-amber-500/20 text-amber-500 border border-amber-500/30"
-    }
-
-    if (rank === 2) {
-      return "bg-slate-400/20 text-slate-400 border border-slate-400/30"
-    }
-
-    if (rank === 3) {
-      return "bg-orange-700/20 text-orange-600 border border-orange-700/30"
-    }
-
-    return "bg-muted/60 text-muted-foreground border border-border/50"
-  }
-
-  // ⚡ UPDATED: Aligns the rankings modal link with the production address
-  // ⚡ Just the clean URL string
   const getInviteUrl = () => {
     return "worldcuppred.vercel.app"
   }
@@ -313,33 +75,38 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
     }
   }
 
+  const openProfile = (player: RankedUser) => setSelectedPlayer(player)
+  const closeSelectedPlayer = () => setSelectedPlayer(null)
+
+  const getRankBadgeClassName = (rank: number, points: number) => {
+    if (points <= 0) {
+      return "bg-muted/60 text-muted-foreground border border-border/50"
+    }
+    if (rank === 1) return "bg-amber-500/20 text-amber-500 border border-amber-500/30"
+    if (rank === 2) return "bg-slate-400/20 text-slate-400 border border-slate-400/30"
+    if (rank === 3) return "bg-orange-700/20 text-orange-600 border border-orange-700/30"
+    return "bg-muted/60 text-muted-foreground border border-border/50"
+  }
+
   // Convert ranked user into the props expected by ProfileTab
   const toProfileProps = (player: RankedUser) => {
     // ⚡ Determine if this specific profile's picks should be hidden
     const isHidden = !REVEAL_ALL_PICKS && !player.isCurrentUser
-    const scorerNameAndFlag = player.scorerPick !== "Not selected"
-      ? (() => {
-          const separatorIndex = player.scorerPick.indexOf("__")
-          const name = separatorIndex >= 0 ? player.scorerPick.slice(0, separatorIndex) : player.scorerPick
-          const flag = separatorIndex >= 0 ? player.scorerPick.slice(separatorIndex + 2) : "⚽"
-          return { name, flag, team: "" }
-        })()
-      : null
 
-    // For now, we don't have full stats in the leaderboard query, so we use placeholders or simple math
-    // In a real app, you might fetch this separately in the Profile modal or include it in the query
+    const scorerInfo = player.scorerId ? players.find(p => p.player_id === player.scorerId) : null
+    const scorerTeamInfo = scorerInfo ? teams.find(t => t.team_id === scorerInfo.team_id) : null
+
     return {
       username: player.name.toUpperCase(),
       rank: player.rank,
       userPoints: player.points,
-      // ⚡ Inject the "Hidden" translation and lock emoji if hidden
       selectedWinner: isHidden 
         ? { code: t("Hidden"), name: "", flag: "🔒" }
-        : player.winnerPick !== "🏳️" ? { code: player.winnerCode, name: "", flag: player.winnerPick } : null,
+        : player.winnerId ? { code: player.winnerCode, name: "", flag: player.winnerPick } : null,
       selectedScorer: isHidden
         ? { name: t("Hidden"), team: "", flag: "🔒" }
-        : scorerNameAndFlag ? { name: scorerNameAndFlag.name, team: scorerNameAndFlag.team, flag: scorerNameAndFlag.flag } : null,
-      stats: { exactHits: player.exactHits, hits: (player as any).hits || 0, misses: (player as any).misses || 0 },
+        : scorerInfo ? { name: scorerInfo.player_name, team: scorerTeamInfo?.team_name ?? "", flag: getFlag(scorerTeamInfo?.team_flag ?? scorerTeamInfo?.abbreviation ?? undefined) } : null,
+      stats: { exactHits: player.exactHits, hits: player.hits || 0, misses: player.misses || 0 },
     }
   }
 
@@ -377,9 +144,7 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
             onClick={() => openProfile(friend)}
             className={cn(
               "relative grid grid-cols-[2.5rem_1fr_4rem_3rem_2rem] gap-2 items-center px-3 py-3 rounded-2xl bg-muted/25 border border-border/50 transition-all text-left w-full overflow-hidden",
-              "cursor-pointer hover:border-primary/30 active:scale-[0.98]",
-              friend.isCurrentUser && "border-primary/50 bg-muted/35",
-                highlightId === friend.id && "ring-2 ring-primary/30 scale-[1.01]"
+              "cursor-pointer hover:border-primary/30 active:scale-[0.98]", friend.isCurrentUser && "border-primary/50 bg-muted/35"
             )}
           >
             {/* Rank Badge */}
