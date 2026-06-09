@@ -316,7 +316,7 @@ const hu: Dictionary = {
   "Locked": "Lezárva",
   "Failed to save winner pick": "Nem sikerült elmenteni a bajnok tippedet",
   "Failed to save top scorer pick": "Nem sikerült elmenteni a gólkirály tippedet",
-  "Live Golden Boot Race": "Góllövőlista",
+  "Live Golden Boot Race": "Góllövőlista Állása",
   "Player": "Játékos",
   "Goals": "Gólok",
 
