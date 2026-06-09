@@ -265,7 +265,7 @@ const hu: Dictionary = {
 
   // ── MATCH FILTERS ─────────────────────────────────────────
   "All Matches": "Összes meccs",
-  "Today": "Mai meccsek",
+  "Today": "Mai",
   "Groups": "Csoportok",
   "Knockouts": "Kieséses",
 
