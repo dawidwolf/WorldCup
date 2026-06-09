@@ -32,19 +32,16 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
     setUsername(value.toUpperCase())
   }
 
-  const handlePinChange = (value: string, onComplete: () => void) => {
-    const nextPin = value.replace(/\D/g, "").slice(0, 4)
-    setPin(nextPin)
-
-    if (nextPin.length === 4) {
-      pinInputRef.current?.blur()
-      onComplete()
-    }
+  const handlePinChange = (value: string) => {
+    // Allow only numeric input and limit to 4 digits
+    const newPin = value.replace(/[^0-9]/g, "").slice(0, 4)
+    setPin(newPin)
   }
 
   const handleRegister = async () => {
     const cleanUsername = username.trim().toUpperCase()
     const cleanPin = pin.trim()
+    
     if (cleanUsername.length < 3) {
       toast.error(t("Username must be at least 3 characters"))
       return
@@ -94,6 +91,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
   const handleLogin = async () => {
     const cleanUsername = username.trim().toUpperCase()
     const cleanPin = pin.trim()
+
     if (!cleanUsername || cleanPin.length !== 4) {
       return
     }
@@ -179,7 +177,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                         maxLength={4}
                         placeholder="1234" 
                         value={pin}
-                        onChange={(e) => handlePinChange(e.target.value, handleLogin)}
+                        onChange={(e) => handlePinChange(e.target.value)}
                         disabled={loading}
                         className="bg-secondary/50 border-primary/20 h-12 rounded-xl text-center text-base tracking-[0.5em] placeholder:tracking-normal placeholder:text-muted-foreground/30"
                       />
@@ -227,7 +225,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
                         maxLength={4}
                         placeholder="1234" 
                         value={pin}
-                        onChange={(e) => handlePinChange(e.target.value, handleRegister)}
+                        onChange={(e) => handlePinChange(e.target.value)}
                         disabled={loading}
                         className="bg-secondary/50 border-primary/20 h-12 rounded-xl text-center text-base tracking-[0.5em] placeholder:tracking-normal placeholder:text-muted-foreground/30"
                       />
