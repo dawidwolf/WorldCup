@@ -110,6 +110,7 @@ const en: Dictionary = {
   "No users in this pool yet.": "No users in this pool yet.",
   "INVITE": "INVITE",
   "Failed to load rankings": "Failed to load rankings",
+  "Hidden": "Hidden",
 
   // ── RANKINGS — invite modal ───────────────────────────────
   "Invite to": "Invite to",
@@ -323,6 +324,7 @@ const hu: Dictionary = {
   "No users in this pool yet.": "Még nincs senki ebben a csoportban.",
   "INVITE": "MEGHÍVÁS",
   "Failed to load rankings": "Nem sikerült betölteni a ranglistát",
+  "Hidden": "Titkos (a torna kezdetéig)",
 
   // ── RANKINGS — invite modal ───────────────────────────────
   "Invite to": "Meghívás ide:",

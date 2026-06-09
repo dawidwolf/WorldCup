@@ -332,12 +332,12 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
       username: player.name.toUpperCase(),
       rank: player.rank,
       userPoints: player.points,
-      // ⚡ Inject the "Locked" translation and lock emoji if hidden
+      // ⚡ Inject the "Hidden" translation and lock emoji if hidden
       selectedWinner: isHidden 
-        ? { code: t("Locked"), name: "", flag: "🔒" }
+        ? { code: t("Hidden"), name: "", flag: "🔒" }
         : player.winnerPick !== "🏳️" ? { code: player.winnerCode, name: "", flag: player.winnerPick } : null,
       selectedScorer: isHidden
-        ? { name: t("Locked"), team: "", flag: "🔒" }
+        ? { name: t("Hidden"), team: "", flag: "🔒" }
         : scorerNameAndFlag ? { name: scorerNameAndFlag.name, team: scorerNameAndFlag.team, flag: scorerNameAndFlag.flag } : null,
       stats: { exactHits: player.exactHits, hits: (player as any).hits || 0, misses: (player as any).misses || 0 },
     }
