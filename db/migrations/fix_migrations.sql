@@ -82,9 +82,8 @@ DECLARE
   v_rec         record;
   v_points      integer;
   v_is_exact    boolean;
-  v_is_outcome  boolean;
 BEGIN
-  -- 1. Load final score
+  -- 1. Load final score from the match that triggered the function
   SELECT home_score, away_score
   INTO v_home_score, v_away_score
   FROM public.matches
@@ -94,25 +93,31 @@ BEGIN
     RAISE EXCEPTION 'Match % has no final score yet.', p_match_id;
   END IF;
 
-  -- 2. Loop over every prediction for this match
+  -- 2. Loop over every user who made a prediction for this match
   FOR v_rec IN
     SELECT user_id, predicted_home_score, predicted_away_score
     FROM public.predictions
     WHERE match_id = p_match_id
   LOOP
-    -- Determine points
-    v_is_exact   := (v_rec.predicted_home_score = v_home_score
-                    AND v_rec.predicted_away_score = v_away_score);
-    v_is_outcome := NOT v_is_exact AND (
-                      SIGN(v_rec.predicted_home_score - v_rec.predicted_away_score)
-                      = SIGN(v_home_score - v_away_score)
-                    );
+    -- Determine points based on the 5/3/2 system
+    v_is_exact := (v_rec.predicted_home_score = v_home_score AND v_rec.predicted_away_score = v_away_score);
 
-    v_points := CASE
-      WHEN v_is_exact   THEN 3
-      WHEN v_is_outcome THEN 1
-      ELSE 0
-    END;
+    IF v_is_exact THEN
+      v_points := 5;
+    ELSE
+      DECLARE
+        actual_diff integer := v_home_score - v_away_score;
+        pred_diff integer := v_rec.predicted_home_score - v_rec.predicted_away_score;
+      BEGIN
+        IF actual_diff = pred_diff THEN
+          v_points := 3; -- Correct goal difference
+        ELSIF sign(actual_diff) = sign(pred_diff) THEN
+          v_points := 2; -- Correct outcome
+        ELSE
+          v_points := 0;
+        END IF;
+      END;
+    END IF;
 
     -- 3. Write to ledger (ON CONFLICT = idempotent: same match scored twice is ignored)
     INSERT INTO public.user_points_events
@@ -123,29 +128,48 @@ BEGIN
       'match_result',
       v_points,
       CASE
-        WHEN v_is_exact   THEN 'Exact score'
-        WHEN v_is_outcome THEN 'Correct outcome'
-        ELSE 'No points'
+        WHEN v_points = 5 THEN 'Exact score'
+        WHEN v_points = 3 THEN 'Correct goal difference'
+        WHEN v_points = 2 THEN 'Correct outcome'
+        ELSE 'Incorrect prediction'
       END
     )
     ON CONFLICT (user_id, match_id, event_type) DO NOTHING;
 
-    -- 4. Update users aggregate only if a new ledger row was inserted
+    -- 4. Update user aggregates if a new ledger row was inserted
     IF FOUND AND v_points > 0 THEN
       UPDATE public.users
       SET
         points_total = points_total + v_points,
         exact_hits   = exact_hits  + (CASE WHEN v_is_exact THEN 1 ELSE 0 END),
-        hits_total   = hits_total  + (CASE WHEN v_is_exact OR v_is_outcome THEN 1 ELSE 0 END),
-        misses_total = misses_total + (CASE WHEN NOT v_is_exact AND NOT v_is_outcome THEN 1 ELSE 0 END)
+        hits_total   = hits_total  + 1
       WHERE user_id = v_rec.user_id;
     ELSIF FOUND AND v_points = 0 THEN
-      -- Still count the miss even for zero points
+      -- Count the miss for an incorrect prediction
       UPDATE public.users
       SET misses_total = misses_total + 1
       WHERE user_id = v_rec.user_id;
     END IF;
 
+  END LOOP;
+
+  -- 5. Loop over users who DID NOT predict and record a miss for them.
+  -- This ensures everyone gets a "miss" if they didn't get a "hit".
+  FOR v_rec IN
+    SELECT u.user_id FROM public.users u
+    WHERE NOT EXISTS (
+      SELECT 1 FROM public.predictions p
+      WHERE p.user_id = u.user_id AND p.match_id = p_match_id
+    )
+  LOOP
+    INSERT INTO public.user_points_events
+      (user_id, match_id, event_type, points_delta, reason)
+    VALUES (v_rec.user_id, p_match_id, 'match_result', 0, 'Forgot to predict')
+    ON CONFLICT (user_id, match_id, event_type) DO NOTHING;
+
+    IF FOUND THEN
+      UPDATE public.users SET misses_total = misses_total + 1 WHERE user_id = v_rec.user_id;
+    END IF;
   END LOOP;
 END;
 $$;

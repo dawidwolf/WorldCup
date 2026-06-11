@@ -91,14 +91,19 @@ export default function MatchPredictionsModal({
 
             let earnedPoints = 0;
             if (matchData.is_finished && matchData.home_score !== null && matchData.away_score !== null && homeScore !== null && awayScore !== null) {
-              if (homeScore === matchData.home_score && awayScore === matchData.away_score) {
-                earnedPoints = 5; 
-              } else if (
-                (homeScore > awayScore && matchData.home_score > matchData.away_score) ||
-                (homeScore < awayScore && matchData.home_score < matchData.away_score) ||
-                (homeScore === awayScore && matchData.home_score === matchData.away_score)
-              ) {
-                earnedPoints = 3; 
+              const actH = matchData.home_score;
+              const actA = matchData.away_score;
+
+              if (homeScore === actH && awayScore === actA) {
+                earnedPoints = 5; // Exact score
+              } else {
+                const actualDiff = actH - actA;
+                const predDiff = homeScore - awayScore;
+                if (actualDiff === predDiff) {
+                  earnedPoints = 3; // Correct goal difference
+                } else if (Math.sign(actualDiff) === Math.sign(predDiff)) {
+                  earnedPoints = 2; // Correct outcome
+                }
               }
             }
 
