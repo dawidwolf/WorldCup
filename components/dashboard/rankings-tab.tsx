@@ -97,6 +97,7 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
     const scorerTeamInfo = scorerInfo ? teams.find(t => t.team_id === scorerInfo.team_id) : null
 
     return {
+      hideLanguageToggle: true,
       username: player.name.toUpperCase(),
       rank: player.rank,
       userPoints: player.points,
@@ -106,7 +107,11 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
       selectedScorer: isHidden
         ? { name: t("Hidden"), team: "", flag: "🔒" }
         : scorerInfo ? { name: scorerInfo.player_name, team: scorerTeamInfo?.team_name ?? "", flag: getFlag(scorerTeamInfo?.team_flag ?? scorerTeamInfo?.abbreviation ?? undefined) } : null,
-      stats: { exactHits: player.exactHits, hits: player.hits || 0, misses: player.misses || 0 },
+      stats: {
+        exactHits: player.exactHits ?? 0,
+        hits: player.hits ?? 0,
+        misses: player.misses ?? 0,
+      },
     }
   }
 

@@ -149,6 +149,7 @@ D
 Concept idea:
 Matches that user doesn't predict on time should store the 0:0 score so user has a chance to get points even when they forgot to predict. 
 
+bad idea
 - 24. 
 
 PWA is still incomplete. There is still no manifest/service worker in the workspace, so install behavior and update caching are not ready.
@@ -164,8 +165,6 @@ I could not find any custom_signup / custom_login RPC implementation in the work
 D
 
 - 27. TEST WITH AI(playwright, browser use, momentic, qa wolf)
-
-- 28. Last gemini and copilot prompts: missing features and patches-->important one! Calculations are not done yet!
 
 Look at the ccodebas, read the md files and read the supabase sql ill paste below. based on these, tell me if the scoring system would work after the website goes live and the world cup starts. Would users see a reliable web app or un untrustable one? If there are misscalculations or unupdated data, or delays, or any issues, the app will no lose the trust of users and the user experience is dead. Give me a list of what has to be done towards the goal of the perfectly working web app. 
 D
@@ -197,10 +196,9 @@ D
 
 - 34.
 
-
 Filter buttons should be swipeadble(i mean not the buttons but their content), so user can swipe left to go to todays matches and to other filer buttons. They are on top so when user is on mobile and uses only one hand, they cant reach, so swiping solves this. 
 
-- 35. 
+- 35.  Supabase clone
 
 supabase update:
 supabase db pull
@@ -209,6 +207,33 @@ supabase gen types typescript --project-id qlnganxvaiuwsuohjwtp --schema public 
 Supabase
 FifaWC#2026
 
+worldcuppred18
+
+worldcuppred18
+
+live:
+
+postgresql://postgres:[FifaWC#2026]@db.qlnganxvaiuwsuohjwtp.supabase.co:5432/postgres
+
+test:
+
+postgresql://postgres:[FifaWC#2026]@db.iyfcjiiwomxatovfnssw.supabase.co:5432/postgres
+
+
+pg_dump -d postgresql://postgres:[worldcuppred18]@db.qlnganxvaiuwsuohjwtp.supabase.co:5432/postgres" --schema=public --no-owner --no-privileges --exclude-table-data=public.users --exclude-table-data=public.pools --exclude-table-data=public.user_pools --exclude-table-data=public.predictions --exclude-table-data=public.user_points_events --exclude-table-data=public.match_results_history | psql -d "postgresql://postgres:[worldcuppred18]@db.iyfcjiiwomxatovfnssw.supabase.co:5432/postgres"
+
+
+fixed:
+
+"C:\Program Files\PostgreSQL\17\bin\pg_dump.exe" -d "postgresql://postgres:worldcuppred18@db.qlnganxvaiuwsuohjwtp.supabase.co:5432/postgres" --schema=public --no-owner --no-privileges --exclude-table-data=public.users --exclude-table-data=public.pools --exclude-table-data=public.user_pools --exclude-table-data=public.predictions --exclude-table-data=public.user_points_events --exclude-table-data=public.match_results_history | "C:\Program Files\PostgreSQL\17\bin\psql.exe" -d "postgresql://postgres:worldcuppred18@db.iyfcjiiwomxatovfnssw.supabase.co:5432/postgres"
+
+"C:\Program Files\PostgreSQL\16\bin\pg_dump.exe" -d "postgresql://postgres:[FifaWC#2026]@db.qlnganxvaiuwsuohjwtp.supabase.co:5432/postgres" --schema=public --no-owner --no-privileges --exclude-table-data=public.users --exclude-table-data=public.pools --exclude-table-data=public.user_pools --exclude-table-data=public.predictions --exclude-table-data=public.user_points_events --exclude-table-data=public.match_results_history | "C:\Program Files\PostgreSQL\16\bin\psql.exe" -d "postgresql://postgres:[FifaWC#2026]@db.iyfcjiiwomxatovfnssw.supabase.co:5432/postgres"
+
+
+Test project Url
+
+https://iyfcjiiwomxatovfnssw.supabase.co
+
+sb_publishable_vj4SZ9J6CRertCIz3G7lIQ_cxVQRFQh
 
 - 36.
-Medium: the match UI can lag at kickoff because it derives live/open state from the server status plus a 60-second client timer. The status logic in matches-tab.tsx:299 and the deadline display in matches-tab.tsx:334 can leave a match looking editable or “Closes soon” a bit too long if the page stays open. The database still blocks late saves, so this is mostly a confusing UX/error path rather than score corruption.

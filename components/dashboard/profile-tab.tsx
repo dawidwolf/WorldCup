@@ -13,13 +13,13 @@ export interface UserPool {
   pool_name: string
   is_admin: boolean
   joined_at: string
-  hideLanguageToggle: boolean,
+  hideLanguageToggle?: boolean,
 }
 
 
 
 interface ProfileTabProps {
-  hideLanguageToggle: boolean,
+  hideLanguageToggle?: boolean,
   username: string
   userPoints: number
   currentUserId?: number
@@ -31,14 +31,14 @@ interface ProfileTabProps {
   stats?: { exactHits: number; hits: number; misses: number }
   onNavigateToRankings?: () => void
   onNavigateToPools?: () => void
-  pools?: UserPool[]
-  onLeavePool?: (poolId: number) => void
+  pools?: UserPool[] | null
+  onLeavePool?: ((poolId: number) => void) | null
   onNavigateToBonus?: () => void
   isPublicView?: boolean
 }
 
 export function ProfileTab({
-  hideLanguageToggle,
+  hideLanguageToggle = false,
   username,
   userPoints,
   currentUserId,
@@ -50,7 +50,7 @@ export function ProfileTab({
   stats = { exactHits: 0, hits: 0, misses: 0 },
   onNavigateToRankings,
   onNavigateToPools,
-  pools = [],
+  pools = null,
   onLeavePool,
   onNavigateToBonus,
   isPublicView = false,
@@ -72,8 +72,8 @@ export function ProfileTab({
     hits: userProfile?.hits_total ?? 0,
     misses: userProfile?.misses_total ?? 0,
   };
-  const totalPredictions = displayStats.exactHits + displayStats.hits + displayStats.misses
-  const accuracyRaw = totalPredictions > 0 ? ((displayStats.exactHits + displayStats.hits) / totalPredictions) * 100 : 0
+  const totalPredictions = displayStats.hits + displayStats.misses
+  const accuracyRaw = totalPredictions > 0 ? (displayStats.hits / totalPredictions) * 100 : 0
   const accuracy = accuracyRaw.toFixed(1)
 
   // ⚡ Just the clean URL string
@@ -220,7 +220,7 @@ export function ProfileTab({
               </button>
             </div>
             <div className="space-y-2">
-              {pools.length > 0 ? (
+              {pools && pools.length > 0 ? (
                 pools.map((pool) => (
                   <div key={pool.pool_id} className="flex items-center justify-between py-1.5 border-b border-border/30 last:border-0 last:pb-0">
                     <div className="flex items-center gap-2">
@@ -311,7 +311,7 @@ export function ProfileTab({
           </Dialog>
 
           {/* Info Card - Global Predictions */}
-          {pools.length > 1 && (
+          {pools && pools.length > 1 && (
             <div className="bg-primary/10 border border-primary/20 rounded-2xl p-4 flex gap-3 items-start">
               <Info className="w-5 h-5 text-primary shrink-0 mt-0.5" />
               <p className="text-sm text-foreground/90 leading-snug">
