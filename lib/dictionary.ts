@@ -89,6 +89,7 @@ const en: Dictionary = {
   "pts": "pts",
   "0 pts": "0 pts",
 
+  "Final score": "Final score",
   // ── BONUS TAB ─────────────────────────────────────────────
   "Predict Winner": "Predict Winner",
   "Predict Top Scorer": "Predict Top Scorer",
@@ -304,6 +305,7 @@ const hu: Dictionary = {
   "pts": "pont",
   "0 pts": "0 pont",
   "2 pts": "2 pont",
+  "Final score": "Végeredmény",
   "3 pts": "3 pont",
   "5 pts": "5 pont",
   "10 pts": "10 pont",

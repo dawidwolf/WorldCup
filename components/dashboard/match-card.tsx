@@ -243,7 +243,10 @@ export function MatchCard({
       <div className={cn(
         "grid grid-cols-3 items-center gap-2",
         isFinishedByStatus && pointsEarned && "mb-3"
-      )}>
+      )}> 
+        {isFinishedByStatus && (
+          <div className="col-span-3 text-center text-sm text-muted-foreground mb-1">{t("Final score")}</div>
+        )}
         {/* Home Team */}
         <div className="flex flex-col items-center">
           <span className="text-3xl">{homeTeam.flag}</span>
@@ -348,9 +351,9 @@ export function MatchCard({
                 <div className={cn(
                   "px-3 py-1 rounded-full text-xs font-medium inline-flex items-center justify-center",
                   pointsEarned.amount === 5 ? "bg-emerald-600 text-white" : // Dark green fill
-                  pointsEarned.amount === 3 ? "bg-primary text-primary-foreground" : // Primary green fill
-                  pointsEarned.amount === 2 ? "bg-muted text-muted-foreground border border-primary" : // Grey fill with primary green border
-                  "bg-muted text-muted-foreground border border-destructive" // Grey fill with red border
+                  pointsEarned.amount === 3 ? "bg-primary text-white" : // Primary green fill
+                  pointsEarned.amount === 2 ? "bg-muted text-white border border-primary" : // Grey fill with primary green border
+                  "bg-muted text-white border border-destructive" // Grey fill with red border
                 )}>
                   <span>
                     {pointsEarned.amount > 0 ? `${pointsEarned.amount} pts` : `0 pts`}
