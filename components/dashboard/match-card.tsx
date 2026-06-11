@@ -356,7 +356,7 @@ export function MatchCard({
                   "bg-muted text-white border border-destructive" // Grey fill with red border
                 )}>
                   <span>
-                    {pointsEarned.amount > 0 ? `${pointsEarned.amount} ${t("pts")}` : `0 ${t("pts")}`}
+                    {pointsEarned.amount > 0 ? `${pointsEarned.amount} ${t("p")}` : `0 ${t("p")}`}
                   </span>
                 </div>
               </div>

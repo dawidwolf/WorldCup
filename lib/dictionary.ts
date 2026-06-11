@@ -88,6 +88,7 @@ const en: Dictionary = {
   // ── MATCH CARD — points badges ────────────────────────────
   "pts": "pts",
   "0 pts": "0 pts",
+  "p": "pts",
 
   "Final score": "Final score",
   // ── BONUS TAB ─────────────────────────────────────────────
@@ -309,6 +310,7 @@ const hu: Dictionary = {
   "3 pts": "3 pont",
   "5 pts": "5 pont",
   "10 pts": "10 pont",
+  "p": "p",
 
   // ── BONUS TAB ─────────────────────────────────────────────
   "Predict Winner": "Tippelj Bajnokot",
