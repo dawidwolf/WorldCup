@@ -5,7 +5,6 @@ import MatchPredictionsModal from '@/components/match-predictions-modal'
 import { cn } from "@/lib/utils"
 import { Check } from "lucide-react"
 import { Spinner } from "@/components/ui/spinner"
-import { useHistoryLayer } from "@/hooks/use-history-layer"
 import { useTournamentData } from "@/context/tournament-data-context"
 
 interface Team {
@@ -72,12 +71,7 @@ export function MatchCard({
   const homeInputRef = useRef<HTMLInputElement | null>(null)
   const awayInputRef = useRef<HTMLInputElement | null>(null)
 
-  const { closeWithHistory: closeModal } = useHistoryLayer({
-    layerId: `match-modal-${id}`,
-    isOpen: isModalOpen,
-    onClose: () => setIsModalOpen(false),
-  })
-
+  const closeModal = () => setIsModalOpen(false);
   const normalizedStatus = (status ?? "").trim().toUpperCase()
   const isPostponed = normalizedStatus === "PST"
   const isFinishedByStatus = isCompleted || normalizedStatus === "FT"
@@ -331,12 +325,16 @@ export function MatchCard({
                 const predAway = (controlledPrediction && typeof controlledPrediction.away !== 'undefined') ? controlledPrediction?.away : initialPrediction?.away
 
                 if (predHome == null && predAway == null) {
-                  return t("No prediction submitted.")
+                  return <span>{t(isFinishedByStatus ? "Forgot to predict." : "No prediction submitted.")}</span>
                 }
 
                 const ph = predHome ?? 0
                 const pa = predAway ?? 0
-                return `${t("You predicted: ")}${ph}:${pa}.`
+                return (
+                  <span>
+                    {t("You predicted: ")}<span className="font-bold text-foreground">{ph}:{pa}</span>
+                  </span>
+                )
               })()}
               <span className={cn(
                 "ml-1",
@@ -347,7 +345,7 @@ export function MatchCard({
             </div>
 
             {isFinishedByStatus && pointsEarned && (
-              <div>
+              <div className="shrink-0">
                 <div className={cn(
                   "px-3 py-1 rounded-full text-xs font-medium inline-flex items-center justify-center",
                   pointsEarned.amount === 5 ? "bg-primary text-white" : // Dark green fill

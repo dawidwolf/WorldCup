@@ -237,3 +237,5 @@ https://iyfcjiiwomxatovfnssw.supabase.co
 sb_publishable_vj4SZ9J6CRertCIz3G7lIQ_cxVQRFQh
 
 - 36.
+
+match cards when finished: highlight the score(e.g.: 3:3) so it has the same color as the big final score in the match card.

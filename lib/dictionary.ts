@@ -83,6 +83,7 @@ const en: Dictionary = {
   // ── MATCH CARD — prediction text ──────────────────────────
   "No prediction submitted.": "No prediction submitted.",
   "You predicted: ": "You predicted: ",
+  "Forgot to predict.": "Forgot to predict.",
   "Tap to see predictions": "Tap to see predictions",
 
   // ── MATCH CARD — points badges ────────────────────────────
@@ -291,7 +292,7 @@ const hu: Dictionary = {
   "Saving...": "Mentés...",
   "Postponed": "Elhalasztva",
   "Finished": "Vége",
-  "Live": "Élő",
+  "Live": "Elkezdődött",
   "Saved": "Mentve",
   "Closes soon": "Hamarosan lezárul",
   "Coming up": "Közelgő",
@@ -300,13 +301,15 @@ const hu: Dictionary = {
   // ── MATCH CARD — prediction text ──────────────────────────
   "No prediction submitted.": "Még nem tippeltél.",
   "You predicted: ": "A tipped: ",
-  "Tap to see predictions": "Kattints a tippek megtekintéséhez",
+  "Forgot to predict.": "Elfelejtettél tippelni.",
+  "Tap to see predictions": "Kattints a tippek megtekintéséhez!",
 
   // ── MATCH CARD — points badges ────────────────────────────
   "pts": "pont",
   "0 pts": "0 pont",
   "2 pts": "2 pont",
   "Final score": "Végeredmény",
+  "Final Score": "Végeredmény",
   "3 pts": "3 pont",
   "5 pts": "5 pont",
   "10 pts": "10 pont",
