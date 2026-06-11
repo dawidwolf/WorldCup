@@ -24,7 +24,7 @@ type RankedUser = import("@/context/tournament-data-context").RankedUser
 export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProps) {
   // Add a comment to trigger re-save
   const { t, rankings, isLoading, pools, activePoolId, players, teams } = useTournamentData()
-  const REVEAL_ALL_PICKS = false // ⚡ Set to true to reveal all picks and test the profile modal without needing multiple accounts
+  const REVEAL_ALL_PICKS = true // ⚡ Set to true to reveal all picks and test the profile modal without needing multiple accounts
   const [selectedPlayer, setSelectedPlayer] = useState<null | any>(null)
   const [showInvite, setShowInvite] = useState(false)
 
