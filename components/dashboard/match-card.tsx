@@ -350,13 +350,13 @@ export function MatchCard({
               <div>
                 <div className={cn(
                   "px-3 py-1 rounded-full text-xs font-medium inline-flex items-center justify-center",
-                  pointsEarned.amount === 5 ? "bg-emerald-600 text-white" : // Dark green fill
-                  pointsEarned.amount === 3 ? "bg-primary text-white" : // Primary green fill
+                  pointsEarned.amount === 5 ? "bg-primary text-white" : // Dark green fill
+                  pointsEarned.amount === 3 ? "bg-emerald-600 text-white" : // Primary green fill
                   pointsEarned.amount === 2 ? "bg-muted text-white border border-primary" : // Grey fill with primary green border
                   "bg-muted text-white border border-destructive" // Grey fill with red border
                 )}>
                   <span>
-                    {pointsEarned.amount > 0 ? `${pointsEarned.amount} pts` : `0 pts`}
+                    {pointsEarned.amount > 0 ? `${pointsEarned.amount} ${t("pts")}` : `0 ${t("pts")}`}
                   </span>
                 </div>
               </div>
