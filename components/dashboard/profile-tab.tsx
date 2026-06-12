@@ -200,7 +200,7 @@ export function ProfileTab({
         <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">{t("Stats")}</h3>
         <div className="grid grid-cols-4 gap-3 text-center">
                 <StatWithArrows label={t("All Hits")} value={displayStats.hits} arrow={arrowState.hits} toneClass="text-primary" />
-                <StatWithArrows label={t("Exact")} value={displayStats.exactHits} arrow={arrowState.exact} toneClass="text-primary" />
+                <StatWithArrows label={t("Exact")} value={`(${displayStats.exactHits})`} arrow={arrowState.exact} toneClass="text-primary" />
                 <StatWithArrows label={t("Misses")} value={displayStats.misses} arrow={arrowState.misses} toneClass="text-destructive" />
                 <StatWithArrows label={t("Accuracy")} value={`${accuracy}%`} arrow={arrowState.accuracy} toneClass="text-primary" showArrows={false} />
               </div>

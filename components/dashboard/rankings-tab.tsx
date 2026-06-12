@@ -187,7 +187,7 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
 
             {/* Exact Hits */}
             <div className="flex justify-center">
-              <span className="text-muted-foreground font-bold text-xs">{friend.exactHits}</span>
+              <span className="text-muted-foreground font-bold text-xs">({friend.exactHits})</span>
             </div>
 
             {/* Points */}
