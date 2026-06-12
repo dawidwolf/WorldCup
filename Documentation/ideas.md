@@ -236,6 +236,19 @@ https://iyfcjiiwomxatovfnssw.supabase.co
 
 sb_publishable_vj4SZ9J6CRertCIz3G7lIQ_cxVQRFQh
 
+
+api football api key:
+
+88cb21f07578dfd65002e168d7de9b5d
+
 - 36.
 
-match cards when finished: highlight the score(e.g.: 3:3) so it has the same color as the big final score in the match card.
+i have 112 players in the player_stats table. they are listed in the bonus tabs live golden boot race list ranked by goals. That list should update automatically as well after every match. here is the table, help me solve this new feature. 
+
+
+
+QSTASH:
+
+QSTASH_TOKEN
+
+gQAAAAAAAWMGAAIgcDFiMGE3OTJiYTEzMmQ0YmY4OGFlOTg0YmRjNzg5YzhiNA
