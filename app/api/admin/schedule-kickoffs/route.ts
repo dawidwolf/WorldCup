@@ -8,44 +8,42 @@ const supabase = createClient(
 
 export async function GET(request: Request) {
   try {
-    // 1. Check if the environment variable exists
     if (!process.env.QSTASH_TOKEN) {
-      return NextResponse.json({ 
-        error: 'CRITICAL ERROR: QSTASH_TOKEN is missing or undefined in Vercel. Make sure you redeployed your Vercel project after adding the variable!' 
-      }, { status: 400 })
+      return NextResponse.json({ error: 'Missing QSTASH_TOKEN' }, { status: 400 })
     }
 
-    // 2. Fetch all un-started matches
+    // 1. Find matches that are NOT finished and NOT scheduled yet!
     const { data: matches, error } = await supabase
       .from('matches')
       .select('match_id, kickoff_utc')
       .eq('is_finished', false)
+      .eq('is_scheduled_live', false) 
       .not('kickoff_utc', 'is', null)
 
     if (error) throw error
 
     if (!matches || matches.length === 0) {
-      return NextResponse.json({ message: 'No matches found in the database that match the scheduling filters.' })
+      return NextResponse.json({ message: 'No new matches need scheduling in the upcoming window.' })
     }
 
-    // 3. YOUR EXACT LIVE DOMAIN
     const targetUrl = `https://worldcuppred.vercel.app/api/webhooks/set-live`
-
     let scheduledCount = 0
-    let skippedPastMatches = 0
     const apiErrors: string[] = []
+    const successfulMatchIds: number[] = []
 
-    // 4. Loop and schedule
+    // Calculate the "6 days from now" limit
+    const sixDaysFromNow = Date.now() + (6 * 24 * 60 * 60 * 1000)
+
     for (const match of matches) {
-      const kickoffTime = new Date(match.kickoff_utc)
+      const kickoffTime = new Date(match.kickoff_utc).getTime()
 
-      // Skip matches that are in the past (QStash rejects past timestamps)
-      if (kickoffTime.getTime() < Date.now()) {
-        skippedPastMatches++
-        continue
-      }
+      // Skip past matches
+      if (kickoffTime < Date.now()) continue
+      
+      // Skip matches that are more than 6 days in the future (Upstash 7-day limit)
+      if (kickoffTime > sixDaysFromNow) continue
 
-      const kickoffTimestamp = Math.floor(kickoffTime.getTime() / 1000)
+      const kickoffTimestamp = Math.floor(kickoffTime / 1000)
 
       const qstashResponse = await fetch(`https://qstash.upstash.io/v2/publish/${targetUrl}`, {
         method: 'POST',
@@ -59,22 +57,31 @@ export async function GET(request: Request) {
 
       if (qstashResponse.ok) {
         scheduledCount++
+        successfulMatchIds.push(match.match_id) // Remember this match!
       } else {
         const errorText = await qstashResponse.text()
-        apiErrors.push(`Match ${match.match_id} failed: Status ${qstashResponse.status} - ${errorText}`)
+        apiErrors.push(`Match ${match.match_id} failed: ${errorText}`)
       }
     }
 
+    // 2. Update the database to permanently mark these as scheduled
+    if (successfulMatchIds.length > 0) {
+      const { error: updateError } = await supabase
+        .from('matches')
+        .update({ is_scheduled_live: true })
+        .in('match_id', successfulMatchIds)
+        
+      if (updateError) console.error("Error updating DB:", updateError)
+    }
+
     return NextResponse.json({ 
-      message: "Process finished.",
-      successfullyScheduled: scheduledCount,
-      skippedPastMatches: skippedPastMatches,
+      message: "Rolling schedule complete.",
+      successfullyScheduledThisRun: scheduledCount,
       failedToSchedule: apiErrors.length,
-      detailedErrors: apiErrors.length > 0 ? apiErrors.slice(0, 5) : 'None!' // Shows the first 5 errors explicitly
+      detailedErrors: apiErrors.length > 0 ? apiErrors : 'None!'
     })
 
   } catch (error: any) {
-    console.error('Scheduling Error:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
