@@ -8,12 +8,12 @@ const supabase = createClient(
 
 export async function GET(request: Request) {
   try {
-    // 1. Get 20 players from your database who don't have an API ID yet
+    // 1. Process strictly 5 players per click to stay under the 10/minute limit!
     const { data: localPlayers, error: dbError } = await supabase
       .from('player_stats')
       .select('player_id, player_name')
       .is('api_player_id', null)
-      .limit(20) // STRICT LIMIT: Protects your 100 daily API calls!
+      .limit(5) 
 
     if (dbError) throw dbError
     
@@ -24,43 +24,65 @@ export async function GET(request: Request) {
     let successCount = 0
     const logs: string[] = []
 
-    // 2. Loop through these 20 players and ask API-Football for their ID
     for (const player of localPlayers) {
-      // Format the name for a URL (e.g., "Kylian Mbappé" -> "Kylian%20Mbapp%C3%A9")
+      // 2. Try the full name first
       const encodedName = encodeURIComponent(player.player_name)
-      
-      const apiResponse = await fetch(`https://v3.football.api-sports.io/players?search=${encodedName}`, {
+      let apiResponse = await fetch(`https://v3.football.api-sports.io/players?search=${encodedName}`, {
         headers: { 'x-apisports-key': process.env.API_FOOTBALL_API_KEY! }
       })
 
       if (!apiResponse.ok) {
-        logs.push(`API Error for ${player.player_name}`)
+        logs.push(`HTTP Blocked for ${player.player_name}`)
         continue
       }
       
-      const apiData = await apiResponse.json()
-      
-      // 3. If the API found a matching player, grab the ID and save it!
-      if (apiData.response && apiData.response.length > 0) {
-        const apiPlayerId = apiData.response[0].player.id
+      let apiData = await apiResponse.json()
 
-        const { error: updateError } = await supabase
+      // Look for hidden API limits/errors inside the JSON
+      if (apiData.errors && Object.keys(apiData.errors).length > 0) {
+        logs.push(`API REJECTED ${player.player_name}: ${JSON.stringify(apiData.errors)}`)
+        continue
+      }
+      
+      // 3. SMART FALLBACK: If not found, try searching just their LAST name!
+      if (!apiData.response || apiData.response.length === 0) {
+        const nameParts = player.player_name.split(' ')
+        const lastName = nameParts[nameParts.length - 1] // Grabs the last word
+        
+        logs.push(`Full name not found. Retrying with last name: "${lastName}"`)
+        
+        const encodedLastName = encodeURIComponent(lastName)
+        apiResponse = await fetch(`https://v3.football.api-sports.io/players?search=${encodedLastName}`, {
+          headers: { 'x-apisports-key': process.env.API_FOOTBALL_API_KEY! }
+        })
+        apiData = await apiResponse.json()
+        
+        if (apiData.errors && Object.keys(apiData.errors).length > 0) {
+          logs.push(`API REJECTED ${lastName}: ${JSON.stringify(apiData.errors)}`)
+          continue
+        }
+      }
+      
+      // 4. Save the Match!
+      if (apiData.response && apiData.response.length > 0) {
+        // Grab the ID of the first player it found
+        const apiPlayerId = apiData.response[0].player.id
+        const apiPlayerName = apiData.response[0].player.name // See what name the API actually uses
+
+        await supabase
           .from('player_stats')
           .update({ api_player_id: apiPlayerId })
           .eq('player_id', player.player_id)
 
-        if (!updateError) {
-          successCount++
-          logs.push(`✅ MATCHED: ${player.player_name} -> ID: ${apiPlayerId}`)
-        }
+        successCount++
+        logs.push(`✅ MATCHED: ${player.player_name} -> ID: ${apiPlayerId} (API uses: ${apiPlayerName})`)
       } else {
-        logs.push(`❌ NOT FOUND: Could not find API match for "${player.player_name}"`)
+        logs.push(`❌ NOT FOUND: Even after last name search for "${player.player_name}"`)
       }
     }
 
     return NextResponse.json({
       message: `Batch complete. Successfully mapped ${successCount} out of ${localPlayers.length} players.`,
-      playersRemainingToMap: "Refresh the page to process the next 20!",
       details: logs
     })
 
