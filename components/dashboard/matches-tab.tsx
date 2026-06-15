@@ -356,7 +356,13 @@ export const MatchesTab = forwardRef<MatchesTabActions, MatchesTabProps>(({ curr
 
     if (rawStatus === 'PST') return 'Postponed'
     if (match.is_finished || rawStatus === 'FT') return 'Finished'
+    // API status is king for live state.
     if (['LIVE', '1H', '2H', 'ET', 'PEN'].includes(rawStatus)) return 'Live'
+
+    // If API status is missing, we can infer from time. If kickoff has passed
+    // but we're still within the typical match duration, consider it live.
+    if (kickoffMs > 0 && kickoffMs <= nowMs && nowMs < kickoffMs + MATCH_LENGTH_MS) return 'Live'
+
     if (hasPrediction) return 'Saved'
 
     const timeDiff = kickoffMs - nowMs
