@@ -1,6 +1,6 @@
 ﻿﻿"use client"
 
-import { useState, useEffect, useRef, useMemo } from "react"
+import { useState, useEffect, useRef, useMemo, forwardRef, useImperativeHandle, useLayoutEffect } from "react"
 import { supabase } from "@/lib/supabase"
 import { MatchCard } from "./match-card"
 import { MatchFilters } from "./match-filters"
@@ -89,6 +89,9 @@ const GROUP_SEEDING: Record<string, number> = {
   ENG: 1, CRO: 2, GHA: 3, PAN: 4,
 };
 
+const MIN_MS = 60 * 1000
+const HOUR_MS = 60 * MIN_MS
+
 const DAY_MS = 24 * 60 * 60 * 1000
 const MATCH_LENGTH_MS = 105 * 60 * 1000
 const LOCAL_DAY_FORMATTER = new Intl.DateTimeFormat('en-US', {
@@ -130,13 +133,70 @@ interface MatchesTabProps {
   activePoolId?: number | null
 }
 
-export function MatchesTab({ currentUserId, activeFilter, onFilterChange, activePoolId = null }: MatchesTabProps) {
-  const { t, language, matches, predictions: predictionsMap, teams, standings, updatePrediction, isLoading: loading } = useTournamentData()
+export interface MatchesTabActions {
+  scrollToDefault: () => void;
+}
+
+export const MatchesTab = forwardRef<MatchesTabActions, MatchesTabProps>(({ currentUserId, activeFilter, onFilterChange, activePoolId = null }, ref) => {
+  const { t, language, matches: contextMatches, predictions: predictionsMap, teams, standings, updatePrediction, isLoading: loading } = useTournamentData()
+  const [matches, setMatches] = useState<Match[]>(contextMatches)
   const [activeGroup, setActiveGroup] = useState<string | null>(null)
   const [now, setNow] = useState(getAppTime())
   const [saving, setSaving] = useState<Record<string, boolean>>({})
   const lastSavedRef = useRef<Record<string, { home: number | null; away: number | null }>>({})
   const listRef = useRef<HTMLDivElement | null>(null)
+
+  useLayoutEffect(() => {
+    // This effect handles scrolling to the relevant match when the user navigates
+    // to this tab. useLayoutEffect runs before the browser paints, preventing any flash.
+    if (activeFilter === 'all' && !activeGroup && !loading) {
+      scrollToDefault();
+    }
+  }, [activeFilter, activeGroup, loading, matches.length]);
+
+  useEffect(() => {
+    setMatches(contextMatches)
+  }, [contextMatches])
+
+  // =====================================================================
+  // FIX 1: THE SILENT TICKER
+  // Forces the UI to recalculate time-based locks every 15 seconds
+  // =====================================================================
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // This state change forces the component to re-render,
+      // which recalculates time-sensitive variables like `cardStatus` and `closesIn`!
+      setNow(getAppTime())
+    }, 15000) // Ticks every 15 seconds
+
+    return () => clearInterval(interval)
+  }, [])
+
+  // =====================================================================
+  // FIX 2: SUPABASE REALTIME
+  // Listens for background updates and syncs the UI instantly
+  // =====================================================================
+  useEffect(() => {
+    // We subscribe to any UPDATE that happens on the 'matches' table
+    const channel = supabase.channel('matches-tab-realtime').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'matches' }, (payload) => {
+      console.log('Realtime Update Received!', payload.new)
+
+      // Instantly update the match in your local React state
+      setMatches((currentMatches) => currentMatches.map((match) => match.match_id === payload.new.match_id ? { ...match, ...(payload.new as Match) } : match))
+    }).subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [])
+
+  useEffect(() => {
+    const savedFilter = localStorage.getItem('wc2026_matches_filter');
+    if (savedFilter && savedFilter !== activeFilter) {
+      // Sync the parent component's state with what's in localStorage
+      onFilterChange(savedFilter);
+    }
+  }, []); // Run only once on mount
 
   const translateGroup = (raw: string | null | undefined): string => {
     if (!raw) return ''
@@ -196,38 +256,62 @@ export function MatchesTab({ currentUserId, activeFilter, onFilterChange, active
     }
   }, [activeFilter])
 
-  const scrollToDefault = () => {
-    if (matches.length === 0) return
-    const nowDate = getAppTime()
-    const todayKey = getLocalDayKey(nowDate.getTime())
-    const tomorrowKey = getLocalDayKey(nowDate.getTime() + DAY_MS)
-    const todayIndex = matches.findIndex((m: Match) => getLocalDayKey(getMatchTimestamp(m.kickoff_utc || '')) === todayKey)
-    let targetIndex = todayIndex
-    if (targetIndex === -1) {
-      targetIndex = matches.findIndex((m: Match) => getMatchTimestamp(m.kickoff_utc || '') >= nowDate.getTime())
-    }
-    if (targetIndex === -1) targetIndex = 0
+  const filteredMatches = useMemo(() => matches.filter((m: Match) => {
+    if (activeGroup) return (
+      m.group === activeGroup ||
+      m.group === `Group ${activeGroup}` ||
+      m.round === activeGroup ||
+      m.round === `Group ${activeGroup}`
+    )
+    
+    const matchTimestamp = getMatchTimestamp(m.kickoff_utc)
+    const nowTimestamp = now.getTime()
+    const todayKey = getLocalDayKey(nowTimestamp)
+    const tomorrowKey = getLocalDayKey(nowTimestamp + DAY_MS)
+    let isToday = getLocalDayKey(matchTimestamp) === todayKey
+    
+    if (activeFilter === "all") return true
+    if (activeFilter === "today") return isToday || getLocalDayKey(matchTimestamp) === tomorrowKey
+    return true
+  }), [matches, activeFilter, activeGroup, now])
 
-    const child = listRef.current?.children[targetIndex] as HTMLElement | undefined
+  useImperativeHandle(ref, () => ({
+    scrollToDefault,
+  }));
+
+  const scrollToDefault = () => {
+    if (filteredMatches.length === 0 || activeFilter !== 'all' || activeGroup) return
+
+    const nowDate = getAppTime()
+    let targetMatchIndex = filteredMatches.findIndex(m => getLocalDayKey(getMatchTimestamp(m.kickoff_utc)) === getLocalDayKey(nowDate.getTime()))
+
+    if (targetMatchIndex === -1) {
+      targetMatchIndex = filteredMatches.findIndex(m => getMatchTimestamp(m.kickoff_utc || '') >= nowDate.getTime())
+    }
+
+    if (targetMatchIndex === -1) return
+
+    const dayKeysBefore = new Set(filteredMatches.slice(0, targetMatchIndex).map(m => getLocalDayKey(getMatchTimestamp(m.kickoff_utc))))
+    const separatorCount = dayKeysBefore.size
+
+    const guideCardPresent = activeFilter === "all" && !activeGroup
+    const elementIndex = targetMatchIndex + separatorCount + (guideCardPresent ? 1 : 0)
+
+    const child = listRef.current?.children[elementIndex] as HTMLElement | undefined
     const filterEl = document.querySelector('[class*="top-[44px]"]') as HTMLElement | null
     const filterBottom = filterEl ? Math.ceil(filterEl.getBoundingClientRect().bottom) : 0
+
     if (child) {
       const childDocTop = Math.ceil(child.getBoundingClientRect().top + window.scrollY)
       const desired = childDocTop - filterBottom - 8
       window.scrollTo({ top: Math.max(0, desired), behavior: 'auto' })
-    } else {
-      window.scrollTo({ top: 0, behavior: 'auto' })
     }
   }
 
   const handleFilterChange = (filter: string) => {
+    localStorage.setItem('wc2026_matches_filter', filter);
     if (filter === 'group' && activeGroup) {
       setActiveGroup(null)
-    }
-    if (filter === 'all') {
-      onFilterChange(filter)
-      setTimeout(scrollToDefault, 0)
-      return
     }
     window.scrollTo({ top: 0, behavior: 'auto' })
     onFilterChange(filter)
@@ -309,10 +393,6 @@ export function MatchesTab({ currentUserId, activeFilter, onFilterChange, active
 
     return { amount: 0, type: "pts" }
   }
-  const MIN_MS = 60 * 1000
-  const HOUR_MS = 60 * MIN_MS
-  const DAY_MS = 24 * HOUR_MS
-
   const getUpcomingText = (kickoffUtc: string | null) => {
     if (!kickoffUtc) return undefined
 
@@ -342,25 +422,6 @@ export function MatchesTab({ currentUserId, activeFilter, onFilterChange, active
 
     return language === 'hu' ? `${days} nap múlva` : `Starts in ${days} days`
   }
-
-  const filteredMatches = matches.filter((m: Match) => {
-    if (activeGroup) return (
-      m.group === activeGroup ||
-      m.group === `Group ${activeGroup}` ||
-      m.round === activeGroup ||
-      m.round === `Group ${activeGroup}`
-    )
-    
-    const matchTimestamp = getMatchTimestamp(m.kickoff_utc)
-    const nowTimestamp = now.getTime()
-    const todayKey = getLocalDayKey(nowTimestamp)
-    const tomorrowKey = getLocalDayKey(nowTimestamp + DAY_MS)
-    let isToday = getLocalDayKey(matchTimestamp) === todayKey
-    
-    if (activeFilter === "all") return true
-    if (activeFilter === "today") return isToday || getLocalDayKey(matchTimestamp) === tomorrowKey
-    return true
-  })
 
   if (loading) {
     return (
@@ -543,54 +604,80 @@ export function MatchesTab({ currentUserId, activeFilter, onFilterChange, active
           )
         })() : (
           (() => {
-            return filteredMatches.map((m) => {
-              const prediction = predictions[m.match_id]
+            let lastDayKey: string | null = null
+            const todayKey = getLocalDayKey(now.getTime())
+            const tomorrowKey = getLocalDayKey(now.getTime() + DAY_MS)
+            const nodes: React.ReactNode[] = []
 
+            filteredMatches.forEach((m) => {
+              const kickoffMs = getMatchTimestamp(m.kickoff_utc)
+              const dayKey = getLocalDayKey(kickoffMs)
+
+              if (dayKey !== lastDayKey) {
+                const isToday = dayKey === todayKey
+                const isTomorrow = dayKey === tomorrowKey
+                const isSpecial = isToday || isTomorrow
+
+                let label: string
+                if (isToday) label = t("Today")
+                else if (isTomorrow) label = t("Tomorrow")
+                else {
+                  label = new Intl.DateTimeFormat(language === 'hu' ? 'hu-HU' : 'en-US', {
+                    weekday: 'long', month: 'long', day: 'numeric',
+                  }).format(kickoffMs)
+                }
+
+                nodes.push(
+                  <div key={`sep-${dayKey}`} className="mt-2 mb-2 flex items-center gap-3 first:mt-0">
+                    <div className="flex-1 h-px bg-border/40" />
+                    <div className={`text-xs font-semibold ${isSpecial ? 'text-muted-foreground' : 'text-muted-foreground/70'}`}>
+                      {label}
+                    </div>
+                    <div className="flex-1 h-px bg-border/40" />
+                  </div>
+                )
+              }
+              lastDayKey = dayKey
+
+              const prediction = predictions[m.match_id]
               const homeTeamObj = teams.find(t => t.team_id === m.home_team_id)
               const awayTeamObj = teams.find(t => t.team_id === m.away_team_id)
-
               const homeCode = homeTeamObj?.abbreviation || m.home_team || '???'
               const awayCode = awayTeamObj?.abbreviation || m.away_team || '???'
               const homeFlag = homeTeamObj?.team_flag || mapFlag(homeCode)
               const awayFlag = awayTeamObj?.team_flag || mapFlag(awayCode)
-
               const matchTime = formatMatchTime(m.kickoff_utc, t, language)
-
-              // ⚡ 1. Calculate cardStatus so it is defined and ready to use below
               const cardStatus = calculateStatus(m, prediction)
               const isSaved = cardStatus === "Saved"
               const closesIn = getUpcomingText(m.kickoff_utc)
               const status = m.status
 
-              return (
-                <div key={m.match_id} className="relative">
-                  <MatchCard
-                    id={m.match_id.toString()}
-                    homeTeam={{ code: homeCode, name: homeTeamObj?.team_name || m.home_team || 'TBD', flag: homeFlag }}
-                    awayTeam={{ code: awayCode, name: awayTeamObj?.team_name || m.away_team || 'TBD', flag: awayFlag }}
-                    group={translateGroup(m.group) || m.round || ''}
-                    matchTime={matchTime}
-                    status={status ?? undefined}
-                    isCompleted={m.is_finished === true || m.status === "FT" || cardStatus === "Finished"}
-                    isLive={["LIVE", "1H", "2H", "ET", "PEN"].includes((m.status ?? "").toUpperCase()) || cardStatus === "Live"}
-                    isPredictionSaved={isSaved}
-                    
-                    // ⚡ 2. Pass down variables checking against cardStatus values
-                    isToday={cardStatus === "Closes soon"}
-                    isUpcomingFar={cardStatus === "Upcoming Grey"}
-                    
-                    closesIn={closesIn}
-                    finalScore={m.home_score !== null && m.away_score !== null ? { home: m.home_score as number, away: m.away_score as number } : undefined}
-                    pointsEarned={getPointsEarned(m, prediction)}
-                    controlledPrediction={prediction}
-                    onPredictionChange={handlePredictionChange}
-                    isSaving={!!saving[m.match_id]}
-                    activePoolId={activePoolId}
-                    currentUserId={currentUserId}
-                  />
-                </div>
+              nodes.push(
+                <MatchCard
+                  key={m.match_id}
+                  id={m.match_id.toString()}
+                  homeTeam={{ code: homeCode, name: homeTeamObj?.team_name || m.home_team || 'TBD', flag: homeFlag }}
+                  awayTeam={{ code: awayCode, name: awayTeamObj?.team_name || m.away_team || 'TBD', flag: awayFlag }}
+                  group={translateGroup(m.group) || m.round || ''}
+                  matchTime={matchTime}
+                  status={status ?? undefined}
+                  isCompleted={m.is_finished === true || m.status === "FT" || cardStatus === "Finished"}
+                  isLive={["LIVE", "1H", "2H", "ET", "PEN"].includes((m.status ?? "").toUpperCase()) || cardStatus === "Live"}
+                  isPredictionSaved={isSaved}
+                  isToday={cardStatus === "Closes soon"}
+                  isUpcomingFar={cardStatus === "Upcoming Grey"}
+                  closesIn={closesIn}
+                  finalScore={m.home_score !== null && m.away_score !== null ? { home: m.home_score as number, away: m.away_score as number } : undefined}
+                  pointsEarned={getPointsEarned(m, prediction)}
+                  controlledPrediction={prediction}
+                  onPredictionChange={handlePredictionChange}
+                  isSaving={!!saving[m.match_id]}
+                  activePoolId={activePoolId}
+                  currentUserId={currentUserId}
+                />
               )
             })
+            return nodes
           })()
         )}
         {filteredMatches.length === 0 && (
@@ -602,3 +689,5 @@ export function MatchesTab({ currentUserId, activeFilter, onFilterChange, active
     </div>
   )
 }
+)
+MatchesTab.displayName = "MatchesTab"

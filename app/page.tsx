@@ -1,7 +1,7 @@
-﻿"use client"
+﻿﻿"use client"
 
 import React, { useState, useEffect, useRef } from "react"
-import { MatchesTab } from "@/components/dashboard/matches-tab"
+import { MatchesTab, MatchesTabActions } from "@/components/dashboard/matches-tab"
 import { RankingsTab } from "@/components/dashboard/rankings-tab"
 import { BonusTab } from "@/components/dashboard/bonus-tab"
 import { ProfileTab } from "@/components/dashboard/profile-tab"
@@ -45,6 +45,7 @@ function Dashboard({ user, onLogout, onPoolsChanged, onNavigateToPools }: {
   const [activeFilter, setActiveFilter] = useState("all")
   const [activeTab, setActiveTab] = useState<DashboardTab>("matches")
   const historyInitializedRef = useRef(false)
+  const matchesTabRef = useRef<MatchesTabActions>(null);
 
   const selectedWinner = React.useMemo(() => {
     if (!userProfile?.predicted_tournament_winner_id || !teams.length) return null
@@ -73,9 +74,23 @@ function Dashboard({ user, onLogout, onPoolsChanged, onNavigateToPools }: {
   }
 
   const handleTabChange = (nextTab: DashboardTab) => {
-    setActiveTab(nextTab)
-    updateTabHistory(nextTab)
-  }
+    const isAlreadyOnMatches = activeTab === 'matches';
+    const wasAlreadyAllFilter = activeFilter === 'all';
+
+    if (activeTab !== nextTab) {
+      setActiveTab(nextTab);
+      updateTabHistory(nextTab);
+    }
+
+    if (nextTab === "matches") {
+      setActiveFilter("all");
+      localStorage.setItem("wc2026_matches_filter", "all");
+
+      if (isAlreadyOnMatches && wasAlreadyAllFilter) {
+        setTimeout(() => matchesTabRef.current?.scrollToDefault(), 0);
+      }
+    }
+  };
 
   useEffect(() => {
     if (typeof window === "undefined" || historyInitializedRef.current) return
@@ -161,7 +176,7 @@ function Dashboard({ user, onLogout, onPoolsChanged, onNavigateToPools }: {
   const renderTabContent = () => {
     switch (activeTab) {
       case "matches":
-        return <MatchesTab currentUserId={user.user_id} activeFilter={activeFilter} onFilterChange={setActiveFilter} activePoolId={activePoolId || pools[0]?.pool_id} />
+        return <MatchesTab ref={matchesTabRef} currentUserId={user.user_id} activeFilter={activeFilter} onFilterChange={setActiveFilter} activePoolId={activePoolId || pools[0]?.pool_id} />
       case "rankings":
         return <div className="pt-20 px-4"><RankingsTab poolId={activePoolId || pools[0]?.pool_id} poolName={(pools.find(p => p.pool_id === activePoolId)?.pool_name || pools[0]?.pool_name || "").toUpperCase()} currentUserId={user.user_id} /></div>
       case "players":
