@@ -63,21 +63,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: `Match ${matchId} finished. Scores updated perfectly!` })
     
     // 5. IF NOT FINISHED: Hit the 60-Second Snooze Button
+    // 5. IF NOT FINISHED: Hit the 30-Second Snooze Button
     } else {
-      // 45 retries * 1 minute = 45 minutes of checking (covers extra time and penalties perfectly)
-      if (retryCount < 45) {
+      // 90 retries * 30 seconds = 45 minutes of checking (still covers extra time and penalties perfectly!)
+      if (retryCount < 90) { 
         const targetUrl = `https://worldcuppred.vercel.app/api/webhooks/check-score`
         await fetch(`https://qstash.upstash.io/v2/publish/${targetUrl}`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${process.env.QSTASH_TOKEN}`,
             'Content-Type': 'application/json',
-            'Upstash-Delay': '1m' // <-- The 60-second Sniper Poll!
+            'Upstash-Delay': '30s' // <--- CHANGED FROM '1m' TO '30s'
           },
           body: JSON.stringify({ matchId, retryCount: retryCount + 1 })
         })
         
-        return NextResponse.json({ message: `Match still playing (Status: ${status}). Scheduled retry #${retryCount + 1} in 1 minute.` })
+        return NextResponse.json({ message: `Match still playing (Status: ${status}). Scheduled retry #${retryCount + 1} in 30 seconds.` })
       } else {
         return NextResponse.json({ message: 'Match went on too long. Max retries hit.' })
       }
