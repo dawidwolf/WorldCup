@@ -253,3 +253,12 @@ QSTASH_TOKEN
 
 eyJVc2VySUQiOiI3NTVkYWE2My1lNzI3LTQ5OWQtYmUyMS05MmRjNThiNDFjYjciLCJQYXNzd29yZCI6ImJmMjY2OWNkMmY0NjQzMDE5ODA3MDU0MmZkMzM5NzNmIn0=
 
+37. 
+
+football-data.org 
+
+API token:
+ace7eb20f7c345019beb3d60214330aa
+
+	{ id: 2000, name: "FIFA World Cup", code: "WC", … }
+   https://api.football-data.org/v4/competitions/WC/matches

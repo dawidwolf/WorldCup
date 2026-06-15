@@ -24,29 +24,37 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: 'Match already finished or not found' })
     }
 
-    // 2. Call the Sports Reporter
-    const apiResponse = await fetch(`https://v3.football.api-sports.io/fixtures?id=${match.api_fixture_id}`, {
-      headers: { 'x-apisports-key': process.env.API_FOOTBALL_API_KEY! }
+    if (!match.api_fixture_id) {
+       return NextResponse.json({ message: 'No API Fixture ID set for this match' })
+    }
+
+    // 2. Call the NEW football-data.org API
+    const apiResponse = await fetch(`https://api.football-data.org/v4/matches/${match.api_fixture_id}`, {
+      headers: { 'X-Auth-Token': process.env.API_FOOTBALL_API_KEY! }
     })
     
-    if (!apiResponse.ok) throw new Error('API-Football request failed')
+    if (!apiResponse.ok) {
+       const errorData = await apiResponse.text()
+       throw new Error(`football-data.org request failed: ${errorData}`)
+    }
       
-    const apiData = await apiResponse.json()
-    const fixtureData = apiData.response[0]
+    const matchData = await apiResponse.json()
 
-    const status = fixtureData.fixture.status.short
-    const homeScore = fixtureData.goals.home
-    const awayScore = fixtureData.goals.away
+    // 3. Extract the clean data
+    const status = matchData.status // 'FINISHED', 'IN_PLAY', 'PAUSED'
+    const homeScore = matchData.score?.fullTime?.home
+    const awayScore = matchData.score?.fullTime?.away
 
-    const isFinished = ['FT', 'AET', 'PEN'].includes(status)
+    const isFinished = status === 'FINISHED'
 
-    // 3. IF FINISHED: Save the scores
-    if (isFinished && homeScore !== null && awayScore !== null) {
+    // 4. IF FINISHED: Save the scores instantly
+    // We also make sure the scores are not null/undefined just to be safe
+    if (isFinished && homeScore !== null && awayScore !== null && homeScore !== undefined && awayScore !== undefined) {
       
       const { error: updateError } = await supabase.from('matches').update({
         home_score: homeScore,
         away_score: awayScore,
-        status: status,
+        status: 'FT', // We manually set FT so your frontend UI reads it perfectly
         is_finished: true
       }).eq('match_id', matchId)
 
@@ -54,21 +62,22 @@ export async function POST(request: Request) {
 
       return NextResponse.json({ message: `Match ${matchId} finished. Scores updated perfectly!` })
     
-    // 4. IF NOT FINISHED: Hit the Snooze Button
+    // 5. IF NOT FINISHED: Hit the 60-Second Snooze Button
     } else {
-      if (retryCount < 6) {
+      // 45 retries * 1 minute = 45 minutes of checking (covers extra time and penalties perfectly)
+      if (retryCount < 45) {
         const targetUrl = `https://worldcuppred.vercel.app/api/webhooks/check-score`
         await fetch(`https://qstash.upstash.io/v2/publish/${targetUrl}`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${process.env.QSTASH_TOKEN}`,
             'Content-Type': 'application/json',
-            'Upstash-Delay': '5m'
+            'Upstash-Delay': '1m' // <-- The 60-second Sniper Poll!
           },
           body: JSON.stringify({ matchId, retryCount: retryCount + 1 })
         })
         
-        return NextResponse.json({ message: `Match still playing. Scheduled retry #${retryCount + 1} in 5 minutes.` })
+        return NextResponse.json({ message: `Match still playing (Status: ${status}). Scheduled retry #${retryCount + 1} in 1 minute.` })
       } else {
         return NextResponse.json({ message: 'Match went on too long. Max retries hit.' })
       }

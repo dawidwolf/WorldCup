@@ -37,7 +37,7 @@ export async function GET(request: Request) {
       if (kickoffTime < Date.now() || kickoffTime > sixDaysFromNow) continue
 
       const kickoffTimestamp = Math.floor(kickoffTime / 1000)
-      const checkScoreTimestamp = kickoffTimestamp + (115 * 60) // <-- Kickoff + 115 Minutes
+      const checkScoreTimestamp = kickoffTimestamp + (110 * 60) // <-- Kickoff + 110 Minutes (Sniper Polling)
 
       // 1. Envelope One: Set Match to LIVE
       const liveResponse = await fetch(`https://qstash.upstash.io/v2/publish/${liveWebhookUrl}`, {
