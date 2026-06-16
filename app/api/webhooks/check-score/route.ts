@@ -50,26 +50,50 @@ export async function POST(request: Request) {
     const isFinished = status === 'FINISHED'
 
     // 4. IF FINISHED: Save the scores instantly
-    // We also make sure the scores are not null/undefined just to be safe
     if (isFinished && homeScore !== null && awayScore !== null && homeScore !== undefined && awayScore !== undefined) {
       
-      // STEP 4A: Update the scores and status first (just like manual input)
+      // STEP 4A: Update the scores and status first
       const { error: scoreError } = await supabase.from('matches').update({
         home_score: homeScore,
         away_score: awayScore,
-        status: 'FT' // We manually set FT so your frontend UI reads it perfectly
+        status: 'FT'
       }).eq('match_id', matchId)
 
       if (scoreError) throw scoreError
 
-      // STEP 4B: Now flip the is_finished switch to safely trigger the database math
+      // STEP 4B: Flip the is_finished switch to trigger the database math
       const { error: finishError } = await supabase.from('matches').update({
         is_finished: true
       }).eq('match_id', matchId)
 
       if (finishError) throw finishError
 
-      return NextResponse.json({ message: `Match ${matchId} finished. Scores updated perfectly in 2 steps!` })
+      // STEP 4C: Update the Goalscorers!
+      // Extract the goals array from the football-data.org response
+      const goals = matchData.goals || []
+      
+      // Count how many goals each player scored in this specific match
+      const goalCounts: Record<number, number> = {}
+      for (const goal of goals) {
+        // We ensure a scorer exists (skipping own goals if the API doesn't attribute them)
+        if (goal.scorer && goal.scorer.id) {
+          goalCounts[goal.scorer.id] = (goalCounts[goal.scorer.id] || 0) + 1
+        }
+      }
+
+      // Send the increments to Supabase using our new RPC function
+      for (const [scorerId, count] of Object.entries(goalCounts)) {
+        const { error: rpcError } = await supabase.rpc('increment_player_goals', {
+          p_api_player_id: parseInt(scorerId),
+          p_goals_to_add: count
+        })
+        
+        if (rpcError) {
+          console.error(`Failed to update goals for player ${scorerId}:`, rpcError)
+        }
+      }
+
+      return NextResponse.json({ message: `Match ${matchId} finished. Scores and Player Goals updated perfectly!` })
     
     // 5. IF NOT FINISHED: Hit the 30-Second Snooze Button
     } else {
