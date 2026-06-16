@@ -1,3 +1,5 @@
+export const maxDuration = 60; // Gives your DB 60 seconds to finish the math!
+
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
@@ -51,18 +53,24 @@ export async function POST(request: Request) {
     // We also make sure the scores are not null/undefined just to be safe
     if (isFinished && homeScore !== null && awayScore !== null && homeScore !== undefined && awayScore !== undefined) {
       
-      const { error: updateError } = await supabase.from('matches').update({
+      // STEP 4A: Update the scores and status first (just like manual input)
+      const { error: scoreError } = await supabase.from('matches').update({
         home_score: homeScore,
         away_score: awayScore,
-        status: 'FT', // We manually set FT so your frontend UI reads it perfectly
+        status: 'FT' // We manually set FT so your frontend UI reads it perfectly
+      }).eq('match_id', matchId)
+
+      if (scoreError) throw scoreError
+
+      // STEP 4B: Now flip the is_finished switch to safely trigger the database math
+      const { error: finishError } = await supabase.from('matches').update({
         is_finished: true
       }).eq('match_id', matchId)
 
-      if (updateError) throw updateError
+      if (finishError) throw finishError
 
-      return NextResponse.json({ message: `Match ${matchId} finished. Scores updated perfectly!` })
+      return NextResponse.json({ message: `Match ${matchId} finished. Scores updated perfectly in 2 steps!` })
     
-    // 5. IF NOT FINISHED: Hit the 60-Second Snooze Button
     // 5. IF NOT FINISHED: Hit the 30-Second Snooze Button
     } else {
       // 90 retries * 30 seconds = 45 minutes of checking (still covers extra time and penalties perfectly!)
@@ -73,7 +81,7 @@ export async function POST(request: Request) {
           headers: {
             'Authorization': `Bearer ${process.env.QSTASH_TOKEN}`,
             'Content-Type': 'application/json',
-            'Upstash-Delay': '30s' // <--- CHANGED FROM '1m' TO '30s'
+            'Upstash-Delay': '30s' // <--- 30-second delay
           },
           body: JSON.stringify({ matchId, retryCount: retryCount + 1 })
         })
