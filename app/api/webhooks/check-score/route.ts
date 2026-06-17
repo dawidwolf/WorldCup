@@ -8,7 +8,10 @@ const supabase = createClient(
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json()
+    // 1. Safely parse the incoming Upstash webhook
+    const bodyText = await request.text()
+    if (!bodyText) return NextResponse.json({ error: 'Empty request body' }, { status: 400 })
+    const body = JSON.parse(bodyText)
     const { matchId, retryCount = 0 } = body
 
     if (!matchId) return NextResponse.json({ error: 'Missing matchId' }, { status: 400 })
@@ -23,47 +26,44 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: 'Match already finished or not found' })
     }
 
-    if (!match.api_fixture_id) {
-       return NextResponse.json({ message: 'No API Fixture ID set for this match' })
-    }
-
     let isFinished = false
     let homeScore = null
     let awayScore = null
-    let status = 'UNKNOWN'
 
-    // We wrap the API call in its own try/catch so a failure DOES NOT crash the file
+    // 2. Fetch API Safely (Bypassing JSON parse crashes)
     try {
       const apiResponse = await fetch(`https://api.football-data.org/v4/matches/${match.api_fixture_id}`, {
         headers: { 'X-Auth-Token': process.env.API_FOOTBALL_API_KEY! }
       })
       
       if (apiResponse.ok) {
-        const matchData = await apiResponse.json()
-        status = matchData.status 
-        homeScore = matchData.score?.fullTime?.home
-        awayScore = matchData.score?.fullTime?.away
-        isFinished = status === 'FINISHED'
-      } else {
-        console.error(`API Hiccup: Status ${apiResponse.status}`)
+        const textData = await apiResponse.text() // Read as text first!
+        if (textData) {
+          const matchData = JSON.parse(textData)
+          homeScore = matchData.score?.fullTime?.home
+          awayScore = matchData.score?.fullTime?.away
+          isFinished = matchData.status === 'FINISHED'
+        }
       }
     } catch (e) {
-      console.error(`Fetch failed, skipping this ping.`)
+      console.error(`API Fetch failed, but keeping loop alive.`)
     }
 
-    // IF FINISHED: Save the scores instantly
-    if (isFinished && homeScore !== null && awayScore !== null && homeScore !== undefined && awayScore !== undefined) {
+    // 3. Update Database Safely (Bypassing the Supabase 204 Bug)
+    if (isFinished && homeScore !== null && awayScore !== null) {
       
-      await supabase.from('matches').update({
+      const { error: updateError } = await supabase.from('matches').update({
         home_score: homeScore,
         away_score: awayScore,
         status: 'FT',
         is_finished: true
-      }).eq('match_id', matchId)
+      }).eq('match_id', matchId).select() // <-- .select() guarantees a safe JSON return!
+
+      if (updateError) throw updateError
 
       return NextResponse.json({ message: `Match ${matchId} finished. Scores updated perfectly!` })
     
-    // IF NOT FINISHED (or if the API temporarily failed): Hit the Snooze Button!
+    // 4. The Snooze Button
     } else {
       if (retryCount < 90) { 
         const targetUrl = `https://worldcuppred.vercel.app/api/webhooks/check-score`
@@ -77,13 +77,14 @@ export async function POST(request: Request) {
           body: JSON.stringify({ matchId, retryCount: retryCount + 1 })
         })
         
-        return NextResponse.json({ message: `Match checking... Scheduled retry #${retryCount + 1} in 30 seconds.` })
+        return NextResponse.json({ message: `Scheduled retry #${retryCount + 1}` })
       } else {
-        return NextResponse.json({ message: 'Match went on too long. Max retries hit.' })
+        return NextResponse.json({ message: 'Max retries hit.' })
       }
     }
 
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error("Fatal Webhook Error:", error)
+    return NextResponse.json({ error: error.message || 'Unknown error' }, { status: 500 })
   }
 }
