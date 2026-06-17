@@ -7,9 +7,12 @@ const supabase = createClient(
 )
 
 const BASE_URL = 'https://worldcuppred.vercel.app'
-const MAX_RETRIES = 160 // Covers 110min + 80min = 190min from kickoff (penalty buffer)
+const MAX_RETRIES = 160
 
 export async function POST(request: Request) {
+  let matchIdToRetry: number | null = null;
+  let nextRetryCount = 1;
+
   try {
     const bodyText = await request.text()
     if (!bodyText) return NextResponse.json({ message: 'Empty body' }, { status: 200 })
@@ -18,6 +21,10 @@ export async function POST(request: Request) {
     const { matchId, retryCount = 0 } = body
 
     if (!matchId) return NextResponse.json({ message: 'Missing matchId' }, { status: 200 })
+    
+    // Save these variables globally so the catch block can use them to retry
+    matchIdToRetry = matchId;
+    nextRetryCount = retryCount + 1;
 
     const { data: match, error: dbError } = await supabase
       .from('matches')
@@ -25,14 +32,21 @@ export async function POST(request: Request) {
       .eq('match_id', matchId)
       .single()
 
-    if (dbError || !match || match.is_finished) {
+    // FIX 1: If there's a DB connection error, don't stop! Throw an error so it drops down and retries.
+    if (dbError) {
+      console.error('[check-score] Transient DB Error:', dbError)
+      throw new Error("Temporary DB Error"); 
+    }
+
+    // If it's legitimately finished, we can safely exit.
+    if (!match || match.is_finished) {
       return NextResponse.json({ message: 'Match finished or not found' }, { status: 200 })
     }
 
     const cleanId = parseInt(String(match.api_fixture_id), 10)
     if (isNaN(cleanId)) {
       console.error(`[check-score] Match ${matchId} has no valid api_fixture_id. Update it in the DB before this round starts.`)
-      return NextResponse.json({ message: 'Invalid API ID — update api_fixture_id for this match' }, { status: 200 })
+      return NextResponse.json({ message: 'Invalid API ID' }, { status: 200 })
     }
 
     let isFinished = false
@@ -54,7 +68,7 @@ export async function POST(request: Request) {
         }
       }
     } catch (e) {
-      console.error(`[check-score] API fetch failed for match ${matchId}, skipping this cycle.`)
+      console.error(`[check-score] API fetch failed, skipping this cycle.`)
     }
 
     if (isFinished && homeScore != null && awayScore != null) {
@@ -63,41 +77,46 @@ export async function POST(request: Request) {
         away_score: awayScore,
         status: 'FT',
         is_finished: true,
-        goals_processed: true, // This correctly flags it to stop triggering
+        goals_processed: true,
       }).eq('match_id', matchId).select()
 
+      // FIX 2: If the DB update fails (e.g. trigger crash), throw error so it retries!
       if (updateError) {
         console.error('[check-score] Supabase update error:', updateError)
-        return NextResponse.json({ message: 'DB Update failed, stopping retry.' }, { status: 200 })
+        throw new Error("DB Update Failed");
       }
 
-      // Fire sync-scorers silently in background
-      fetch(`${BASE_URL}/api/admin/sync-scorers`, { method: 'GET' })
-        .catch((err) => console.error('[check-score] Silent scorer ping failed:', err))
-
+      fetch(`${BASE_URL}/api/admin/sync-scorers`, { method: 'GET' }).catch(() => {})
       return NextResponse.json({ message: `Match ${matchId} finished and updated. ${homeScore}:${awayScore}` }, { status: 200 })
-    
-    } else {
-      if (retryCount < MAX_RETRIES) {
-        await fetch(`https://qstash.upstash.io/v2/publish/${BASE_URL}/api/webhooks/check-score`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${process.env.QSTASH_TOKEN}`,
-            'Content-Type': 'application/json',
-            'Upstash-Delay': '30s',
-            // Prevents a second chain from firing for the same match
-            'Upstash-Deduplication-Id': `match-${matchId}-retry-${retryCount + 1}`,
-          },
-          body: JSON.stringify({ matchId, retryCount: retryCount + 1 })
-        })
-        return NextResponse.json({ message: `Snoozing... retry #${retryCount + 1}/${MAX_RETRIES}` }, { status: 200 })
-      }
-      console.error(`[check-score] Max retries hit for match ${matchId}. Check manually.`)
-      return NextResponse.json({ message: 'Max retries hit.' }, { status: 200 })
-    }
+    } 
 
   } catch (error: any) {
-    console.error('[check-score] Fatal crash:', error)
-    return NextResponse.json({ message: 'Crashed safely' }, { status: 200 })
+    console.error('[check-score] Caught error, dropping down to retry loop:', error)
   }
+
+  // --- THE BULLETPROOF RETRY BLOCK ---
+  // If the code reaches this line, it means we MUST snooze and try again, 
+  // regardless of whether it was a DB crash, an API error, or just the match still playing.
+  
+  if (matchIdToRetry && nextRetryCount <= MAX_RETRIES) {
+    const qstashRes = await fetch(`https://qstash.upstash.io/v2/publish/${BASE_URL}/api/webhooks/check-score`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.QSTASH_TOKEN}`,
+        'Content-Type': 'application/json',
+        'Upstash-Delay': '30s',
+        'Upstash-Deduplication-Id': `match-${matchIdToRetry}-retry-${nextRetryCount}`,
+      },
+      body: JSON.stringify({ matchId: matchIdToRetry, retryCount: nextRetryCount })
+    });
+
+    // FIX 3: Check if Upstash is rejecting our messages due to free tier limits
+    if (!qstashRes.ok) {
+      console.error('[check-score] QStash rejected the retry. Are you out of messages?', await qstashRes.text());
+    }
+
+    return NextResponse.json({ message: `Snoozing... retry #${nextRetryCount}/${MAX_RETRIES}` }, { status: 200 })
+  }
+
+  return NextResponse.json({ message: 'Max retries hit or fatal setup error.' }, { status: 200 })
 }
