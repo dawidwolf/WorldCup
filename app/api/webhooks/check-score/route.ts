@@ -8,13 +8,13 @@ const supabase = createClient(
 
 export async function POST(request: Request) {
   try {
-    // 1. Safely parse the incoming Upstash webhook
     const bodyText = await request.text()
-    if (!bodyText) return NextResponse.json({ error: 'Empty request body' }, { status: 400 })
+    if (!bodyText) return NextResponse.json({ message: 'Empty body' }, { status: 200 })
+    
     const body = JSON.parse(bodyText)
     const { matchId, retryCount = 0 } = body
 
-    if (!matchId) return NextResponse.json({ error: 'Missing matchId' }, { status: 400 })
+    if (!matchId) return NextResponse.json({ message: 'Missing matchId' }, { status: 200 })
 
     const { data: match, error: dbError } = await supabase
       .from('matches')
@@ -23,21 +23,24 @@ export async function POST(request: Request) {
       .single()
 
     if (dbError || !match || match.is_finished) {
-      return NextResponse.json({ message: 'Match already finished or not found' })
+      return NextResponse.json({ message: 'Match finished or not found' }, { status: 200 })
     }
+
+    // Safeguard ID format
+    const cleanId = parseInt(String(match.api_fixture_id), 10)
+    if (isNaN(cleanId)) return NextResponse.json({ message: 'Invalid API ID' }, { status: 200 })
 
     let isFinished = false
     let homeScore = null
     let awayScore = null
 
-    // 2. Fetch API Safely (Bypassing JSON parse crashes)
     try {
-      const apiResponse = await fetch(`https://api.football-data.org/v4/matches/${match.api_fixture_id}`, {
+      const apiResponse = await fetch(`https://api.football-data.org/v4/matches/${cleanId}`, {
         headers: { 'X-Auth-Token': process.env.API_FOOTBALL_API_KEY! }
       })
       
       if (apiResponse.ok) {
-        const textData = await apiResponse.text() // Read as text first!
+        const textData = await apiResponse.text()
         if (textData) {
           const matchData = JSON.parse(textData)
           homeScore = matchData.score?.fullTime?.home
@@ -46,28 +49,35 @@ export async function POST(request: Request) {
         }
       }
     } catch (e) {
-      console.error(`API Fetch failed, but keeping loop alive.`)
+      console.error(`API Fetch failed, skipping this cycle.`)
     }
 
-    // 3. Update Database Safely (Bypassing the Supabase 204 Bug)
-    if (isFinished && homeScore !== null && awayScore !== null) {
-      
+    if (isFinished && homeScore != null && awayScore != null) {
       const { error: updateError } = await supabase.from('matches').update({
         home_score: homeScore,
         away_score: awayScore,
         status: 'FT',
         is_finished: true
-      }).eq('match_id', matchId).select() // <-- .select() guarantees a safe JSON return!
+      }).eq('match_id', matchId).select()
 
-      if (updateError) throw updateError
+      if (updateError) {
+        console.error("Supabase Trigger Error:", updateError)
+        return NextResponse.json({ message: 'DB Update failed, stopping retry.' }, { status: 200 })
+      }
 
-      return NextResponse.json({ message: `Match ${matchId} finished. Scores updated perfectly!` })
+      // --- NEW: THE GOAL-HUNTER TRIGGER ---
+      // Silently ping the scorer sync route in the background so it updates real-time!
+      try {
+        fetch(`https://worldcuppred.vercel.app/api/admin/sync-scorers`, { method: 'GET' })
+          .catch((err) => console.error("Silent Scorer Ping failed:", err))
+      } catch (e) {}
+      // ------------------------------------
+
+      return NextResponse.json({ message: 'Match finished and updated.' }, { status: 200 })
     
-    // 4. The Snooze Button
     } else {
-      if (retryCount < 90) { 
-        const targetUrl = `https://worldcuppred.vercel.app/api/webhooks/check-score`
-        await fetch(`https://qstash.upstash.io/v2/publish/${targetUrl}`, {
+      if (retryCount < 120) { 
+        await fetch(`https://qstash.upstash.io/v2/publish/https://worldcuppred.vercel.app/api/webhooks/check-score`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${process.env.QSTASH_TOKEN}`,
@@ -76,15 +86,13 @@ export async function POST(request: Request) {
           },
           body: JSON.stringify({ matchId, retryCount: retryCount + 1 })
         })
-        
-        return NextResponse.json({ message: `Scheduled retry #${retryCount + 1}` })
-      } else {
-        return NextResponse.json({ message: 'Max retries hit.' })
-      }
+        return NextResponse.json({ message: `Snoozing... retry #${retryCount + 1}` }, { status: 200 })
+      } 
+      return NextResponse.json({ message: 'Max retries hit.' }, { status: 200 })
     }
 
   } catch (error: any) {
-    console.error("Fatal Webhook Error:", error)
-    return NextResponse.json({ error: error.message || 'Unknown error' }, { status: 500 })
+    console.error("Fatal Webhook Crash:", error)
+    return NextResponse.json({ message: 'Crashed safely' }, { status: 200 })
   }
 }
