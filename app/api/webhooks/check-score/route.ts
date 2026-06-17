@@ -6,6 +6,9 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
+const BASE_URL = 'https://worldcuppred.vercel.app'
+const MAX_RETRIES = 160 // Covers 110min + 80min = 190min from kickoff (penalty buffer)
+
 export async function POST(request: Request) {
   try {
     const bodyText = await request.text()
@@ -26,9 +29,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: 'Match finished or not found' }, { status: 200 })
     }
 
-    // Safeguard ID format
     const cleanId = parseInt(String(match.api_fixture_id), 10)
-    if (isNaN(cleanId)) return NextResponse.json({ message: 'Invalid API ID' }, { status: 200 })
+    if (isNaN(cleanId)) {
+      console.error(`[check-score] Match ${matchId} has no valid api_fixture_id. Update it in the DB before this round starts.`)
+      return NextResponse.json({ message: 'Invalid API ID — update api_fixture_id for this match' }, { status: 200 })
+    }
 
     let isFinished = false
     let homeScore = null
@@ -49,7 +54,7 @@ export async function POST(request: Request) {
         }
       }
     } catch (e) {
-      console.error(`API Fetch failed, skipping this cycle.`)
+      console.error(`[check-score] API fetch failed for match ${matchId}, skipping this cycle.`)
     }
 
     if (isFinished && homeScore != null && awayScore != null) {
@@ -57,42 +62,42 @@ export async function POST(request: Request) {
         home_score: homeScore,
         away_score: awayScore,
         status: 'FT',
-        is_finished: true
+        is_finished: true,
+        goals_processed: true, // This correctly flags it to stop triggering
       }).eq('match_id', matchId).select()
 
       if (updateError) {
-        console.error("Supabase Trigger Error:", updateError)
+        console.error('[check-score] Supabase update error:', updateError)
         return NextResponse.json({ message: 'DB Update failed, stopping retry.' }, { status: 200 })
       }
 
-      // --- NEW: THE GOAL-HUNTER TRIGGER ---
-      // Silently ping the scorer sync route in the background so it updates real-time!
-      try {
-        fetch(`https://worldcuppred.vercel.app/api/admin/sync-scorers`, { method: 'GET' })
-          .catch((err) => console.error("Silent Scorer Ping failed:", err))
-      } catch (e) {}
-      // ------------------------------------
+      // Fire sync-scorers silently in background
+      fetch(`${BASE_URL}/api/admin/sync-scorers`, { method: 'GET' })
+        .catch((err) => console.error('[check-score] Silent scorer ping failed:', err))
 
-      return NextResponse.json({ message: 'Match finished and updated.' }, { status: 200 })
+      return NextResponse.json({ message: `Match ${matchId} finished and updated. ${homeScore}:${awayScore}` }, { status: 200 })
     
     } else {
-      if (retryCount < 120) { 
-        await fetch(`https://qstash.upstash.io/v2/publish/https://worldcuppred.vercel.app/api/webhooks/check-score`, {
+      if (retryCount < MAX_RETRIES) {
+        await fetch(`https://qstash.upstash.io/v2/publish/${BASE_URL}/api/webhooks/check-score`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${process.env.QSTASH_TOKEN}`,
             'Content-Type': 'application/json',
-            'Upstash-Delay': '30s'
+            'Upstash-Delay': '30s',
+            // Prevents a second chain from firing for the same match
+            'Upstash-Deduplication-Id': `match-${matchId}-retry-${retryCount + 1}`,
           },
           body: JSON.stringify({ matchId, retryCount: retryCount + 1 })
         })
-        return NextResponse.json({ message: `Snoozing... retry #${retryCount + 1}` }, { status: 200 })
-      } 
+        return NextResponse.json({ message: `Snoozing... retry #${retryCount + 1}/${MAX_RETRIES}` }, { status: 200 })
+      }
+      console.error(`[check-score] Max retries hit for match ${matchId}. Check manually.`)
       return NextResponse.json({ message: 'Max retries hit.' }, { status: 200 })
     }
 
   } catch (error: any) {
-    console.error("Fatal Webhook Crash:", error)
+    console.error('[check-score] Fatal crash:', error)
     return NextResponse.json({ message: 'Crashed safely' }, { status: 200 })
   }
 }

@@ -1,8 +1,8 @@
 {
   "crons": [
     {
-      "path": "/api/cron/check-live-matches",
-      "schedule": "*/5 * * * *"
+      "path": "/api/admin/schedule-kickoffs",
+      "schedule": "0 8 * * *"
     }
   ]
 }
