@@ -55,7 +55,8 @@ export async function POST(request: Request) {
 
     try {
       const apiResponse = await fetch(`https://api.football-data.org/v4/matches/${cleanId}`, {
-        headers: { 'X-Auth-Token': process.env.API_FOOTBALL_API_KEY! }
+        headers: { 'X-Auth-Token': process.env.API_FOOTBALL_API_KEY! },
+        cache: 'no-store'
       })
       
       if (apiResponse.ok) {
