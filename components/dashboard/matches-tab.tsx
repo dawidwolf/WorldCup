@@ -464,20 +464,30 @@ export const MatchesTab = forwardRef<MatchesTabActions, MatchesTabProps>(({ curr
               const raw = t.abbreviation || t.fifa_code || (t.team_name ? t.team_name.split(' ').map((w:any) => w[0]).join('').slice(0,3) : '')
               const abbr = String(raw).toUpperCase()
               const flag = ((t.team_flag ?? undefined) || mapFlag(abbr ?? undefined) || mapFlag(t.fifa_code ?? undefined)) ?? '🏳️'
+              
               return {
                 abbr,
                 flag,
-                pts: st?.points || 0,
-                gd: st?.goal_difference || 0
+                pts: st?.points ?? 0,
+                // Using Number() and ?? ensures it is ALWAYS treated as math
+                gd: Number(st?.goal_difference ?? 0) 
               }
             }).sort((a: any, b: any) => {
-                if (a.pts !== 0 || b.pts !== 0) {
-                  return b.pts - a.pts || b.gd - a.gd
-                }
-                const seedA = GROUP_SEEDING[a.abbr] ?? 99
-                const seedB = GROUP_SEEDING[b.abbr] ?? 99
-                return seedA - seedB
-              })
+              // 1. Primary Rule: Sort by points (Highest points first)
+              if (b.pts !== a.pts) {
+                return b.pts - a.pts;
+              }
+              
+              // 2. Secondary Rule: If points are tied, sort by goal difference (Highest GD first)
+              if (b.gd !== a.gd) {
+                return b.gd - a.gd;
+              }
+
+              // 3. Tie-breaker Rule: Only use seeding if both points AND goal difference are perfectly tied
+              const seedA = GROUP_SEEDING[a.abbr] ?? 99;
+              const seedB = GROUP_SEEDING[b.abbr] ?? 99;
+              return seedA - seedB;
+            })
 
             return (
               <div 
