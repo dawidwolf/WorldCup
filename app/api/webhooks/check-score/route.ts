@@ -7,7 +7,7 @@ const supabase = createClient(
 )
 
 const BASE_URL = 'https://worldcuppred.vercel.app'
-const MAX_RETRIES = 160
+const MAX_RETRIES = 120
 
 export async function POST(request: Request) {
   let matchIdToRetry: number | null = null;
@@ -105,7 +105,7 @@ export async function POST(request: Request) {
       headers: {
         'Authorization': `Bearer ${process.env.QSTASH_TOKEN}`,
         'Content-Type': 'application/json',
-        'Upstash-Delay': '30s',
+        'Upstash-Delay': '2m',
         'Upstash-Deduplication-Id': `match-${matchIdToRetry}-retry-${nextRetryCount}`,
       },
       body: JSON.stringify({ matchId: matchIdToRetry, retryCount: nextRetryCount })
