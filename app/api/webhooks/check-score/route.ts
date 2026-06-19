@@ -7,7 +7,7 @@ const supabase = createClient(
 )
 
 const BASE_URL = 'https://worldcuppred.vercel.app'
-const MAX_RETRIES = 120
+const MAX_RETRIES = 360 // 360 * 10s = 60 minutes of polling after 110th min
 
 export async function POST(request: Request) {
   let matchIdToRetry: number | null = null;
@@ -22,7 +22,6 @@ export async function POST(request: Request) {
 
     if (!matchId) return NextResponse.json({ message: 'Missing matchId' }, { status: 200 })
     
-    // Save these variables globally so the catch block can use them to retry
     matchIdToRetry = matchId;
     nextRetryCount = retryCount + 1;
 
@@ -32,20 +31,17 @@ export async function POST(request: Request) {
       .eq('match_id', matchId)
       .single()
 
-    // FIX 1: If there's a DB connection error, don't stop! Throw an error so it drops down and retries.
     if (dbError) {
       console.error('[check-score] Transient DB Error:', dbError)
       throw new Error("Temporary DB Error"); 
     }
 
-    // If it's legitimately finished, we can safely exit.
     if (!match || match.is_finished) {
       return NextResponse.json({ message: 'Match finished or not found' }, { status: 200 })
     }
 
     const cleanId = parseInt(String(match.api_fixture_id), 10)
     if (isNaN(cleanId)) {
-      console.error(`[check-score] Match ${matchId} has no valid api_fixture_id. Update it in the DB before this round starts.`)
       return NextResponse.json({ message: 'Invalid API ID' }, { status: 200 })
     }
 
@@ -54,56 +50,68 @@ export async function POST(request: Request) {
     let awayScore = null
 
     try {
+      // SAFETY NET 1: AbortController prevents API from hanging Vercel
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 5000)
+
       const apiResponse = await fetch(`https://api.football-data.org/v4/matches/${cleanId}`, {
         headers: { 'X-Auth-Token': process.env.API_FOOTBALL_API_KEY! },
-        cache: 'no-store'
+        cache: 'no-store',
+        signal: controller.signal
       })
+      
+      clearTimeout(timeoutId)
       
       if (apiResponse.ok) {
         const textData = await apiResponse.text()
         if (textData) {
           const matchData = JSON.parse(textData)
-          homeScore = matchData.score?.fullTime?.home
-          awayScore = matchData.score?.fullTime?.away
-          isFinished = matchData.status === 'FINISHED'
           
-          // ADD THESE 4 LINES RIGHT HERE:
+          // SAFETY NET 2: Bulletproof Parser (Catches Regular vs Full Time)
+          const scoreObj = matchData.score || {};
+          homeScore = scoreObj.fullTime?.home ?? scoreObj.regularTime?.home;
+          awayScore = scoreObj.fullTime?.away ?? scoreObj.regularTime?.away;
+          
+          isFinished = matchData.status === 'FINISHED' || matchData.status === 'AWARDED';
+          
           console.log(`=== DEBUG MATCH ${matchId} ===`)
-          console.log(`RAW STATUS FROM API: ${matchData.status}`)
-          console.log(`RAW SCORE FROM API: ${JSON.stringify(matchData.score)}`)
+          console.log(`RAW STATUS: ${matchData.status}`)
+          console.log(`PARSED: Home: ${homeScore}, Away: ${awayScore}, isFinished: ${isFinished}`)
           console.log(`===========================`)
         }
       }
     } catch (e) {
-      console.error(`[check-score] API fetch failed, skipping this cycle.`)
+      console.error(`[check-score] API fetch failed or timed out. Skipping this cycle.`)
     }
 
     if (isFinished && homeScore != null && awayScore != null) {
-      const { error: updateError } = await supabase.from('matches').update({
+      // SAFETY NET 3: Two-Step DB Update (Prevents Trigger Timeout)
+      
+      // Step A: Update scores only
+      await supabase.from('matches').update({
         home_score: homeScore,
         away_score: awayScore,
         status: 'FT',
+      }).eq('match_id', matchId)
+
+      // Step B: Flip the finished switch to run the heavy math triggers
+      const { error: updateError } = await supabase.from('matches').update({
         is_finished: true,
         goals_processed: true,
-      }).eq('match_id', matchId).select()
+      }).eq('match_id', matchId)
 
-      // FIX 2: If the DB update fails (e.g. trigger crash), throw error so it retries!
       if (updateError) {
         console.error('[check-score] Supabase update error:', updateError)
         throw new Error("DB Update Failed");
       }
 
       fetch(`${BASE_URL}/api/admin/sync-scorers`, { method: 'GET' }).catch(() => {})
-      return NextResponse.json({ message: `Match ${matchId} finished and updated. ${homeScore}:${awayScore}` }, { status: 200 })
+      return NextResponse.json({ message: `Match ${matchId} finished and updated.` }, { status: 200 })
     } 
 
   } catch (error: any) {
     console.error('[check-score] Caught error, dropping down to retry loop:', error)
   }
-
-  // --- THE BULLETPROOF RETRY BLOCK ---
-  // If the code reaches this line, it means we MUST snooze and try again, 
-  // regardless of whether it was a DB crash, an API error, or just the match still playing.
   
   if (matchIdToRetry && nextRetryCount <= MAX_RETRIES) {
     const qstashRes = await fetch(`https://qstash.upstash.io/v2/publish/${BASE_URL}/api/webhooks/check-score`, {
@@ -111,15 +119,14 @@ export async function POST(request: Request) {
       headers: {
         'Authorization': `Bearer ${process.env.QSTASH_TOKEN}`,
         'Content-Type': 'application/json',
-        'Upstash-Delay': '30s',
+        'Upstash-Delay': '15s', // Perfect 15-second interval
         'Upstash-Deduplication-Id': `match-${matchIdToRetry}-retry-${nextRetryCount}`,
       },
       body: JSON.stringify({ matchId: matchIdToRetry, retryCount: nextRetryCount })
     });
 
-    // FIX 3: Check if Upstash is rejecting our messages due to free tier limits
     if (!qstashRes.ok) {
-      console.error('[check-score] QStash rejected the retry. Are you out of messages?', await qstashRes.text());
+      console.error('[check-score] QStash rejected the retry.', await qstashRes.text());
     }
 
     return NextResponse.json({ message: `Snoozing... retry #${nextRetryCount}/${MAX_RETRIES}` }, { status: 200 })
