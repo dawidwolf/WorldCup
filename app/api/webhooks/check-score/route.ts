@@ -66,6 +66,12 @@ export async function POST(request: Request) {
           homeScore = matchData.score?.fullTime?.home
           awayScore = matchData.score?.fullTime?.away
           isFinished = matchData.status === 'FINISHED'
+          
+          // ADD THESE 4 LINES RIGHT HERE:
+          console.log(`=== DEBUG MATCH ${matchId} ===`)
+          console.log(`RAW STATUS FROM API: ${matchData.status}`)
+          console.log(`RAW SCORE FROM API: ${JSON.stringify(matchData.score)}`)
+          console.log(`===========================`)
         }
       }
     } catch (e) {
@@ -105,7 +111,7 @@ export async function POST(request: Request) {
       headers: {
         'Authorization': `Bearer ${process.env.QSTASH_TOKEN}`,
         'Content-Type': 'application/json',
-        'Upstash-Delay': '2m',
+        'Upstash-Delay': '30s',
         'Upstash-Deduplication-Id': `match-${matchIdToRetry}-retry-${nextRetryCount}`,
       },
       body: JSON.stringify({ matchId: matchIdToRetry, retryCount: nextRetryCount })
