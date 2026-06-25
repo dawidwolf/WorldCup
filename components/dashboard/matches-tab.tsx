@@ -280,49 +280,38 @@ export const MatchesTab = forwardRef<MatchesTabActions, MatchesTabProps>(({ curr
   }));
 
   const scrollToDefault = () => {
-    if (!listRef.current || !listRef.current.isConnected || filteredMatches.length === 0 || activeFilter !== 'all' || activeGroup) return;
+    // Guard against running this logic when the tab is not visible or ready.
+    if (!listRef.current || !listRef.current.isConnected || filteredMatches.length === 0 || activeFilter !== 'all' || activeGroup) {
+      return;
+    }
+    const rect = listRef.current.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) {
+      return; // The component is hidden, so don't scroll.
+    }
 
     const nowMs = getAppTime().getTime();
-    let targetMatch: Match | undefined;
+    const todayKey = getLocalDayKey(nowMs);
 
-    // 1. Absolute Priority: Find any LIVE match
-    targetMatch = filteredMatches.find((m) => {
-      const rawStatus = String(m.status ?? '').trim().toUpperCase();
-      const isLiveByStatus = ["LIVE", "1H", "2H", "ET", "PEN"].includes(rawStatus);
-      const kickMs = getMatchTimestamp(m.kickoff_utc);
-      const isLiveByTime = kickMs > 0 && kickMs <= nowMs && nowMs < kickMs + MATCH_LENGTH_MS;
-      
-      return isLiveByStatus || (!m.is_finished && isLiveByTime);
-    });
+    // Priority 1: Find the first match of the current day.
+    let targetMatch = filteredMatches.find(m => getLocalDayKey(getMatchTimestamp(m.kickoff_utc)) === todayKey);
 
-    // 2. Priority 2 & 3: Find the chronological seam
+    // Priority 2: If no matches today, find the first upcoming match.
     if (!targetMatch) {
-      // Look for the very first match whose kickoff time is officially in the future
-      const firstUpcomingIndex = filteredMatches.findIndex(m => getMatchTimestamp(m.kickoff_utc) > nowMs);
-
-      if (firstUpcomingIndex === -1) {
-        // Fallback A: Every single match is in the past (Tournament is over)
-        targetMatch = filteredMatches[filteredMatches.length - 1];
-      } else if (firstUpcomingIndex === 0) {
-        // Fallback B: Every single match is in the future (Tournament hasn't started)
-        targetMatch = filteredMatches[0];
-      } else {
-        // The Seam: There are past matches and future matches. 
-        // The user wants the LAST FINISHED match. Since the UI is rendered chronologically, 
-        // the match directly before the first upcoming one is guaranteed to be the latest finished match!
-        targetMatch = filteredMatches[firstUpcomingIndex - 1];
-      }
+      targetMatch = filteredMatches.find(m => getMatchTimestamp(m.kickoff_utc || '') >= nowMs);
+    }
+    
+    // Fallback: If no upcoming matches (e.g., tournament is over), scroll to the last match in the list.
+    if (!targetMatch && filteredMatches.length > 0) {
+      targetMatch = filteredMatches[filteredMatches.length - 1];
     }
 
     if (!targetMatch) return;
 
-    // 3. Execute the scroll INSTANTLY without flashes
-    // We wrap it in requestAnimationFrame to guarantee React has painted the DOM first
+    // Execute the scroll instantly.
+    // requestAnimationFrame ensures the DOM is ready for scrolling.
     requestAnimationFrame(() => {
       const el = listRef.current?.querySelector(`[data-match-id="${targetMatch.match_id}"]`);
       if (el) {
-        // behavior: 'auto' forces a brutal, instant snap (no smooth scrolling animations)
-        // block: 'center' puts it perfectly in the middle of the phone screen
         el.scrollIntoView({ behavior: 'auto', block: 'center' });
       }
     });
