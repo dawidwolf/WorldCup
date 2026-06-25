@@ -294,42 +294,35 @@ export const MatchesTab = forwardRef<MatchesTabActions, MatchesTabProps>(({ curr
     if (filteredMatches.length === 0 || activeFilter !== 'all' || activeGroup) return;
 
     const nowMs = getAppTime().getTime();
-    let targetMatch: Match | undefined = undefined;
 
-    // Priority 1: Find the first 'LIVE' match.
+    // Priority 1: Find any 'LIVE' match.
     const liveMatch = filteredMatches.find(m => {
       const rawStatus = String(m.status ?? '').trim().toUpperCase();
       const isLiveByStatus = ["LIVE", "1H", "2H", "ET", "PEN"].includes(rawStatus);
       if (isLiveByStatus) return true;
       
       const kickoffMs = getMatchTimestamp(m.kickoff_utc);
-      // Infer live status from time if API status is not yet updated
       const isLiveByTime = kickoffMs > 0 && kickoffMs <= nowMs && nowMs < kickoffMs + MATCH_LENGTH_MS;
       return isLiveByTime;
     });
 
+    let targetMatch: Match | undefined;
+
     if (liveMatch) {
       targetMatch = liveMatch;
     } else {
-      // Priority 2: Find the *last* chronologically finished match.
-      const finishedMatches = filteredMatches.filter(m => m.is_finished || String(m.status ?? '').toUpperCase() === 'FT');
-      if (finishedMatches.length > 0) {
-        targetMatch = finishedMatches[finishedMatches.length - 1];
+      // No live matches. Find the seam between past and future matches.
+      const firstUpcomingIndex = filteredMatches.findIndex(m => getMatchTimestamp(m.kickoff_utc || '') > nowMs);
+
+      if (firstUpcomingIndex === -1 && filteredMatches.length > 0) {
+        // All matches are in the past, scroll to the last one.
+        targetMatch = filteredMatches[filteredMatches.length - 1];
+      } else if (firstUpcomingIndex > 0) {
+        // Scroll to the last match that is not in the future (the one before the first upcoming).
+        targetMatch = filteredMatches[firstUpcomingIndex - 1];
       } else {
-        // Fallback: Find the first match of the current day.
-        const todayKey = getLocalDayKey(nowMs);
-        let fallbackMatch = filteredMatches.find(m => getLocalDayKey(getMatchTimestamp(m.kickoff_utc)) === todayKey);
-
-        // Or the first upcoming match if none for today.
-        if (!fallbackMatch) {
-          fallbackMatch = filteredMatches.find(m => getMatchTimestamp(m.kickoff_utc || '') >= nowMs);
-        }
-
-        // Or just the first match in the list if still nothing.
-        if (!fallbackMatch && filteredMatches.length > 0) {
-          fallbackMatch = filteredMatches[0];
-        }
-        targetMatch = fallbackMatch;
+        // Otherwise, tournament hasn't started or there are no past matches. Scroll to the first match.
+        targetMatch = filteredMatches[0];
       }
     }
 
