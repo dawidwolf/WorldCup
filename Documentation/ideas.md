@@ -262,3 +262,27 @@ ace7eb20f7c345019beb3d60214330aa
 
 	{ id: 2000, name: "FIFA World Cup", code: "WC", … }
    https://api.football-data.org/v4/competitions/WC/matches
+
+
+   the stats api key:
+
+fapi_8kThyyePtDAXbNNCmq4L2LgosCiCwro6
+
+world cup id:
+
+comp_6107
+
+      Get an API key
+      Sign up and retrieve your API key from your account dashboard.
+      2
+
+      Authenticate your requests
+      Pass your key in the Authorization: Bearer YOUR_API_KEY header on every request.
+      3
+
+      Query the data you need
+      Use the REST endpoints to fetch competitions, teams, players, match results, statistics, and more.
+      4
+
+      Build your application
+      Combine endpoints to power live scores, player cards, league tables, xG visualizations, and betting tools.

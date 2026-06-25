@@ -7,7 +7,7 @@ const supabase = createClient(
 )
 
 const BASE_URL = 'https://worldcuppred.vercel.app'
-const MAX_RETRIES = 360 // 360 * 10s = 60 minutes of polling after 110th min
+const MAX_RETRIES = 360 // 360 * 15s = 90 minutes of polling after 110th min
 
 export async function POST(request: Request) {
   let matchIdToRetry: number | null = null;
@@ -105,8 +105,27 @@ export async function POST(request: Request) {
         throw new Error("DB Update Failed");
       }
 
-      fetch(`${BASE_URL}/api/admin/sync-scorers`, { method: 'GET' }).catch(() => {})
-      return NextResponse.json({ message: `Match ${matchId} finished and updated.` }, { status: 200 })
+      // --- THE NEW AUTOMATION BLOCK ---
+      
+      // 1. Trigger the Top Scorers check (10 seconds from now)
+      await fetch(`https://qstash.upstash.io/v2/publish/${BASE_URL}/api/admin/sync-scorers`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.QSTASH_TOKEN}`,
+          'Upstash-Delay': '10s',
+        }
+      });
+
+      // 2. Trigger the Knockout Bracket check (30 minutes from now)
+      await fetch(`https://qstash.upstash.io/v2/publish/${BASE_URL}/api/admin/sync-fixtures`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.QSTASH_TOKEN}`,
+          'Upstash-Delay': '30m', 
+        }
+      });
+
+      return NextResponse.json({ message: `Match ${matchId} finished and updated. Scorers and Fixtures scheduled.` }, { status: 200 })
     } 
 
   } catch (error: any) {
