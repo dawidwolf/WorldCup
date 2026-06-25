@@ -284,19 +284,18 @@ export const MatchesTab = forwardRef<MatchesTabActions, MatchesTabProps>(({ curr
     if (!listRef.current || !listRef.current.isConnected) {
       return;
     }
-    // If the component is hidden via CSS (e.g., display: none), its size will be zero.
     const rect = listRef.current.getBoundingClientRect();
     if (rect.width === 0 && rect.height === 0) {
-      // The component is hidden, so don't scroll.
       return;
     }
 
     if (filteredMatches.length === 0 || activeFilter !== 'all' || activeGroup) return;
 
     const nowMs = getAppTime().getTime();
+    let targetMatch: Match | undefined;
 
     // Priority 1: Find any 'LIVE' match.
-    const liveMatch = filteredMatches.find(m => {
+    targetMatch = filteredMatches.find(m => {
       const rawStatus = String(m.status ?? '').trim().toUpperCase();
       const isLiveByStatus = ["LIVE", "1H", "2H", "ET", "PEN"].includes(rawStatus);
       if (isLiveByStatus) return true;
@@ -306,22 +305,33 @@ export const MatchesTab = forwardRef<MatchesTabActions, MatchesTabProps>(({ curr
       return isLiveByTime;
     });
 
-    let targetMatch: Match | undefined;
+    // Priority 2: No live matches. Find the LATEST FINISHED match.
+    if (!targetMatch) {
+      const pastMatches = filteredMatches.filter(m => {
+        const rawStatus = String(m.status ?? '').trim().toUpperCase();
+        if (m.is_finished || rawStatus === 'FT') return true;
+        
+        const kickoffMs = getMatchTimestamp(m.kickoff_utc);
+        return kickoffMs > 0 && kickoffMs + MATCH_LENGTH_MS <= nowMs;
+      });
 
-    if (liveMatch) {
-      targetMatch = liveMatch;
-    } else {
-      // No live matches. Find the seam between past and future matches.
-      const firstUpcomingIndex = filteredMatches.findIndex(m => getMatchTimestamp(m.kickoff_utc || '') > nowMs);
+      if (pastMatches.length > 0) {
+        // Sort them chronologically (newest first) to find the absolute latest finished match
+        pastMatches.sort((a, b) => getMatchTimestamp(b.kickoff_utc) - getMatchTimestamp(a.kickoff_utc));
+        targetMatch = pastMatches[0];
+      }
+    }
 
-      if (firstUpcomingIndex === -1 && filteredMatches.length > 0) {
-        // All matches are in the past, scroll to the last one.
-        targetMatch = filteredMatches[filteredMatches.length - 1];
-      } else if (firstUpcomingIndex > 0) {
-        // Scroll to the last match that is not in the future (the one before the first upcoming).
-        targetMatch = filteredMatches[firstUpcomingIndex - 1];
+    // Priority 3: Tournament hasn't started or no past matches? Jump to the FIRST UPCOMING match.
+    if (!targetMatch) {
+      const upcomingMatches = filteredMatches.filter(m => getMatchTimestamp(m.kickoff_utc) > nowMs);
+      
+      if (upcomingMatches.length > 0) {
+        // Sort them chronologically (oldest first) to find the very next match to happen
+        upcomingMatches.sort((a, b) => getMatchTimestamp(a.kickoff_utc) - getMatchTimestamp(b.kickoff_utc));
+        targetMatch = upcomingMatches[0];
       } else {
-        // Otherwise, tournament hasn't started or there are no past matches. Scroll to the first match.
+        // Extreme fallback
         targetMatch = filteredMatches[0];
       }
     }
@@ -330,6 +340,8 @@ export const MatchesTab = forwardRef<MatchesTabActions, MatchesTabProps>(({ curr
 
     const targetElement = listRef.current?.querySelector(`[data-match-id="${targetMatch.match_id}"]`);
     if (targetElement) {
+      // behavior: 'auto' forces an instant, un-animated jump so there is no flash
+      // block: 'center' puts that specific card directly in the middle of the phone screen
       targetElement.scrollIntoView({ behavior: 'auto', block: 'center' });
     }
   };
