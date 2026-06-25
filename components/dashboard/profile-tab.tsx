@@ -1,6 +1,6 @@
 ﻿﻿"use client"
 
-import { LogOut, Shield, Info, ArrowUp, ArrowDown } from 'lucide-react'
+import { LogOut, Shield, Info } from 'lucide-react'
 import { useState } from 'react'
 import { useTournamentData } from '@/context/tournament-data-context'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
@@ -199,11 +199,11 @@ export function ProfileTab({
       <div className="bg-card rounded-2xl p-4 shadow-lg shadow-black/20 border border-border/50">
         <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">{t("Stats")}</h3>
         <div className="grid grid-cols-4 gap-3 text-center">
-                <StatWithArrows label={t("All Hits")} value={displayStats.hits} arrow={arrowState.hits} toneClass="text-primary" />
-                <StatWithArrows label={t("Exact")} value={`(${displayStats.exactHits})`} arrow={arrowState.exact} toneClass="text-primary" />
-                <StatWithArrows label={t("Misses")} value={displayStats.misses} arrow={arrowState.misses} toneClass="text-destructive" />
-                <StatWithArrows label={t("Accuracy")} value={`${accuracy}%`} arrow={arrowState.accuracy} toneClass="text-primary" showArrows={false} />
-              </div>
+          <StatItem label={t("All Hits")} value={displayStats.hits} toneClass="text-primary" />
+          <StatItem label={t("Exact")} value={`(${displayStats.exactHits})`} toneClass="text-primary" />
+          <StatItem label={t("Misses")} value={displayStats.misses} toneClass="text-destructive" />
+          <StatItem label={t("Accuracy")} value={`${accuracy}%`} toneClass="text-primary" />
+        </div>
       </div>
 
       {!isPublicView && (
@@ -367,34 +367,12 @@ export function ProfileTab({
   )
 }
 
-// Small helper component to render value with vertical arrows
-function StatWithArrows({ label, value, arrow, toneClass, showArrows = true }: { label: string; value: number | string; arrow?: string; toneClass: string; showArrows?: boolean }) {
-  const upClass = arrow === 'up' ? 'text-emerald-500' : 'text-muted-foreground opacity-40'
-  const downClass = arrow === 'down' ? 'text-destructive' : 'text-muted-foreground opacity-40'
-
-  if (!showArrows) {
-    return (
-      <div className="flex flex-col items-center">
-        <div className="w-10 flex justify-center">
-          <p className={`text-lg font-bold ${toneClass} font-mono`}>{value}</p>
-        </div>
-        <div className="mt-1 w-10 text-center">
-          <p className="text-xs text-muted-foreground">{label}</p>
-        </div>
-      </div>
-    )
-  }
-
+// Small helper component to render a stat item
+function StatItem({ label, value, toneClass }: { label: string; value: number | string; toneClass: string }) {
   return (
     <div className="flex flex-col items-center">
-      <div className="flex items-center gap-1">
-        <div className="w-10 flex justify-center">
-          <p className={`text-lg font-bold ${toneClass} font-mono`}>{value}</p>
-        </div>
-        <div className="flex flex-col items-center -ml-1">
-          <ArrowUp className={`w-3 h-3 ${upClass}`} strokeWidth={3} />
-          <ArrowDown className={`w-3 h-3 ${downClass} mt-0.5`} strokeWidth={3} />
-        </div>
+      <div className="w-10 flex justify-center">
+        <p className={`text-lg font-bold ${toneClass} font-mono`}>{value}</p>
       </div>
       <div className="mt-1 w-10 text-center">
         <p className="text-xs text-muted-foreground">{label}</p>

@@ -57,8 +57,8 @@ export function MatchCard({
   isSaving = false,
   activePoolId = null,
   currentUserId = null,
-  
-}: MatchCardProps): import("react/jsx-runtime").JSX.Element {
+  ...props
+}: MatchCardProps & React.HTMLAttributes<HTMLDivElement>): import("react/jsx-runtime").JSX.Element {
   const { t } = useTournamentData()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [homeScore, setHomeScore] = useState<string>(
@@ -218,6 +218,7 @@ export function MatchCard({
 
   return (
     <div
+      {...props}
       onClick={handleCardClick}
       role="button"
       aria-disabled={!(isLiveByStatus || isFinishedByStatus)}

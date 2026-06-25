@@ -1,4 +1,4 @@
-﻿﻿"use client"
+﻿﻿﻿﻿"use client"
 
 import { useState, useEffect, useRef, useMemo, forwardRef, useImperativeHandle, useLayoutEffect } from "react"
 import { supabase } from "@/lib/supabase"
@@ -148,7 +148,7 @@ export const MatchesTab = forwardRef<MatchesTabActions, MatchesTabProps>(({ curr
 
   useLayoutEffect(() => {
     // This effect handles scrolling to the relevant match when the user navigates
-    // to this tab. useLayoutEffect runs before the browser paints, preventing any flash.
+    // to this tab. useLayoutEffect runs before paint, preventing any flash of unscrolled content.
     if (activeFilter === 'all' && !activeGroup && !loading) {
       scrollToDefault();
     }
@@ -280,33 +280,66 @@ export const MatchesTab = forwardRef<MatchesTabActions, MatchesTabProps>(({ curr
   }));
 
   const scrollToDefault = () => {
-    if (filteredMatches.length === 0 || activeFilter !== 'all' || activeGroup) return
-
-    const nowDate = getAppTime()
-    let targetMatchIndex = filteredMatches.findIndex(m => getLocalDayKey(getMatchTimestamp(m.kickoff_utc)) === getLocalDayKey(nowDate.getTime()))
-
-    if (targetMatchIndex === -1) {
-      targetMatchIndex = filteredMatches.findIndex(m => getMatchTimestamp(m.kickoff_utc || '') >= nowDate.getTime())
+    // Guard against running this logic when the tab is not visible.
+    if (!listRef.current || !listRef.current.isConnected) {
+      return;
+    }
+    // If the component is hidden via CSS (e.g., display: none), its size will be zero.
+    const rect = listRef.current.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) {
+      // The component is hidden, so don't scroll.
+      return;
     }
 
-    if (targetMatchIndex === -1) return
+    if (filteredMatches.length === 0 || activeFilter !== 'all' || activeGroup) return;
 
-    const dayKeysBefore = new Set(filteredMatches.slice(0, targetMatchIndex).map(m => getLocalDayKey(getMatchTimestamp(m.kickoff_utc))))
-    const separatorCount = dayKeysBefore.size
+    const nowMs = getAppTime().getTime();
+    let targetMatch: Match | undefined = undefined;
 
-    const guideCardPresent = activeFilter === "all" && !activeGroup
-    const elementIndex = targetMatchIndex + separatorCount + (guideCardPresent ? 1 : 0)
+    // Priority 1: Find the first 'LIVE' match.
+    const liveMatch = filteredMatches.find(m => {
+      const rawStatus = String(m.status ?? '').trim().toUpperCase();
+      const isLiveByStatus = ["LIVE", "1H", "2H", "ET", "PEN"].includes(rawStatus);
+      if (isLiveByStatus) return true;
+      
+      const kickoffMs = getMatchTimestamp(m.kickoff_utc);
+      // Infer live status from time if API status is not yet updated
+      const isLiveByTime = kickoffMs > 0 && kickoffMs <= nowMs && nowMs < kickoffMs + MATCH_LENGTH_MS;
+      return isLiveByTime;
+    });
 
-    const child = listRef.current?.children[elementIndex] as HTMLElement | undefined
-    const filterEl = document.querySelector('[class*="top-[44px]"]') as HTMLElement | null
-    const filterBottom = filterEl ? Math.ceil(filterEl.getBoundingClientRect().bottom) : 0
+    if (liveMatch) {
+      targetMatch = liveMatch;
+    } else {
+      // Priority 2: Find the *last* chronologically finished match.
+      const finishedMatches = filteredMatches.filter(m => m.is_finished || String(m.status ?? '').toUpperCase() === 'FT');
+      if (finishedMatches.length > 0) {
+        targetMatch = finishedMatches[finishedMatches.length - 1];
+      } else {
+        // Fallback: Find the first match of the current day.
+        const todayKey = getLocalDayKey(nowMs);
+        let fallbackMatch = filteredMatches.find(m => getLocalDayKey(getMatchTimestamp(m.kickoff_utc)) === todayKey);
 
-    if (child) {
-      const childDocTop = Math.ceil(child.getBoundingClientRect().top + window.scrollY)
-      const desired = childDocTop - filterBottom - 8
-      window.scrollTo({ top: Math.max(0, desired), behavior: 'auto' })
+        // Or the first upcoming match if none for today.
+        if (!fallbackMatch) {
+          fallbackMatch = filteredMatches.find(m => getMatchTimestamp(m.kickoff_utc || '') >= nowMs);
+        }
+
+        // Or just the first match in the list if still nothing.
+        if (!fallbackMatch && filteredMatches.length > 0) {
+          fallbackMatch = filteredMatches[0];
+        }
+        targetMatch = fallbackMatch;
+      }
     }
-  }
+
+    if (!targetMatch) return;
+
+    const targetElement = listRef.current?.querySelector(`[data-match-id="${targetMatch.match_id}"]`);
+    if (targetElement) {
+      targetElement.scrollIntoView({ behavior: 'auto', block: 'center' });
+    }
+  };
 
   const handleFilterChange = (filter: string) => {
     localStorage.setItem('wc2026_matches_filter', filter);
@@ -575,6 +608,7 @@ export const MatchesTab = forwardRef<MatchesTabActions, MatchesTabProps>(({ curr
             return (
               <MatchCard
                 key={m.match_id}
+                data-match-id={m.match_id}
                 id={m.match_id.toString()}
                 homeTeam={{ code: homeCode, name: homeTeamObj?.team_name || m.home_team || 'TBD', flag: homeFlag }}
                 awayTeam={{ code: awayCode, name: awayTeamObj?.team_name || m.away_team || 'TBD', flag: awayFlag }}
@@ -671,6 +705,7 @@ export const MatchesTab = forwardRef<MatchesTabActions, MatchesTabProps>(({ curr
               nodes.push(
                 <MatchCard
                   key={m.match_id}
+                  data-match-id={m.match_id}
                   id={m.match_id.toString()}
                   homeTeam={{ code: homeCode, name: homeTeamObj?.team_name || m.home_team || 'TBD', flag: homeFlag }}
                   awayTeam={{ code: awayCode, name: awayTeamObj?.team_name || m.away_team || 'TBD', flag: awayFlag }}

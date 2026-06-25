@@ -90,3 +90,8 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
+
+// Add this at the absolute bottom of api/admin/sync-fixtures/route.ts
+export async function POST() {
+  return GET();
+}

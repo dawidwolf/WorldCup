@@ -57,3 +57,7 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
+// Add this to the bottom of api/admin/sync-scorers/route.ts if it only uses GET
+export async function POST() {
+  return GET();
+}

@@ -82,7 +82,7 @@ export function AuthScreen({ onSuccess }: AuthScreenProps) {
         description: t("Please try again."),
       })
 
-      console.error("custom_signup error:", e)
+      console.error("custom_signup error:", e?.message || e)
     } finally {
       setLoading(false)
     }
