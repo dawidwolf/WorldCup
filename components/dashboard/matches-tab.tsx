@@ -280,81 +280,64 @@ export const MatchesTab = forwardRef<MatchesTabActions, MatchesTabProps>(({ curr
   }));
 
   const scrollToDefault = () => {
-    // Guard against running this logic when the tab is not visible.
-    if (!listRef.current || !listRef.current.isConnected) {
-      return;
-    }
-    const rect = listRef.current.getBoundingClientRect();
-    if (rect.width === 0 && rect.height === 0) {
-      return;
-    }
-
-    if (filteredMatches.length === 0 || activeFilter !== 'all' || activeGroup) return;
+    if (!listRef.current || !listRef.current.isConnected || filteredMatches.length === 0 || activeFilter !== 'all' || activeGroup) return;
 
     const nowMs = getAppTime().getTime();
     let targetMatch: Match | undefined;
 
-    // Priority 1: Find any 'LIVE' match.
-    targetMatch = filteredMatches.find(m => {
+    // 1. Absolute Priority: Find any LIVE match
+    targetMatch = filteredMatches.find((m) => {
       const rawStatus = String(m.status ?? '').trim().toUpperCase();
       const isLiveByStatus = ["LIVE", "1H", "2H", "ET", "PEN"].includes(rawStatus);
-      if (isLiveByStatus) return true;
+      const kickMs = getMatchTimestamp(m.kickoff_utc);
+      const isLiveByTime = kickMs > 0 && kickMs <= nowMs && nowMs < kickMs + MATCH_LENGTH_MS;
       
-      const kickoffMs = getMatchTimestamp(m.kickoff_utc);
-      const isLiveByTime = kickoffMs > 0 && kickoffMs <= nowMs && nowMs < kickoffMs + MATCH_LENGTH_MS;
-      return isLiveByTime;
+      return isLiveByStatus || (!m.is_finished && isLiveByTime);
     });
 
-    // Priority 2: No live matches. Find the LATEST FINISHED match.
+    // 2. Priority 2 & 3: Find the chronological seam
     if (!targetMatch) {
-      const pastMatches = filteredMatches.filter(m => {
-        const rawStatus = String(m.status ?? '').trim().toUpperCase();
-        if (m.is_finished || rawStatus === 'FT') return true;
-        
-        const kickoffMs = getMatchTimestamp(m.kickoff_utc);
-        return kickoffMs > 0 && kickoffMs + MATCH_LENGTH_MS <= nowMs;
-      });
+      // Look for the very first match whose kickoff time is officially in the future
+      const firstUpcomingIndex = filteredMatches.findIndex(m => getMatchTimestamp(m.kickoff_utc) > nowMs);
 
-      if (pastMatches.length > 0) {
-        // Sort them chronologically (newest first) to find the absolute latest finished match
-        pastMatches.sort((a, b) => getMatchTimestamp(b.kickoff_utc) - getMatchTimestamp(a.kickoff_utc));
-        targetMatch = pastMatches[0];
-      }
-    }
-
-    // Priority 3: Tournament hasn't started or no past matches? Jump to the FIRST UPCOMING match.
-    if (!targetMatch) {
-      const upcomingMatches = filteredMatches.filter(m => getMatchTimestamp(m.kickoff_utc) > nowMs);
-      
-      if (upcomingMatches.length > 0) {
-        // Sort them chronologically (oldest first) to find the very next match to happen
-        upcomingMatches.sort((a, b) => getMatchTimestamp(a.kickoff_utc) - getMatchTimestamp(b.kickoff_utc));
-        targetMatch = upcomingMatches[0];
-      } else {
-        // Extreme fallback
+      if (firstUpcomingIndex === -1) {
+        // Fallback A: Every single match is in the past (Tournament is over)
+        targetMatch = filteredMatches[filteredMatches.length - 1];
+      } else if (firstUpcomingIndex === 0) {
+        // Fallback B: Every single match is in the future (Tournament hasn't started)
         targetMatch = filteredMatches[0];
+      } else {
+        // The Seam: There are past matches and future matches. 
+        // The user wants the LAST FINISHED match. Since the UI is rendered chronologically, 
+        // the match directly before the first upcoming one is guaranteed to be the latest finished match!
+        targetMatch = filteredMatches[firstUpcomingIndex - 1];
       }
     }
 
     if (!targetMatch) return;
 
-    const targetElement = listRef.current?.querySelector(`[data-match-id="${targetMatch.match_id}"]`);
-    if (targetElement) {
-      // behavior: 'auto' forces an instant, un-animated jump so there is no flash
-      // block: 'center' puts that specific card directly in the middle of the phone screen
-      targetElement.scrollIntoView({ behavior: 'auto', block: 'center' });
-    }
+    // 3. Execute the scroll INSTANTLY without flashes
+    // We wrap it in requestAnimationFrame to guarantee React has painted the DOM first
+    requestAnimationFrame(() => {
+      const el = listRef.current?.querySelector(`[data-match-id="${targetMatch.match_id}"]`);
+      if (el) {
+        // behavior: 'auto' forces a brutal, instant snap (no smooth scrolling animations)
+        // block: 'center' puts it perfectly in the middle of the phone screen
+        el.scrollIntoView({ behavior: 'auto', block: 'center' });
+      }
+    });
   };
-
+  // PASTE THIS RIGHT HERE:
   const handleFilterChange = (filter: string) => {
     localStorage.setItem('wc2026_matches_filter', filter);
     if (filter === 'group' && activeGroup) {
-      setActiveGroup(null)
+      setActiveGroup(null);
     }
-    window.scrollTo({ top: 0, behavior: 'auto' })
-    onFilterChange(filter)
-  }
-
+    window.scrollTo({ top: 0, behavior: 'auto' });
+    onFilterChange(filter);
+  };
+  // -----------------------
+  
   const handlePredictionChange = async (matchIdStr: string, home: number | null, away: number | null) => {
     const matchId = parseInt(matchIdStr, 10)
     setSaving(prev => ({ ...prev, [matchIdStr]: true }))
