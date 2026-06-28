@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-// Next.js automatically loads your .env.local file. 
-// The correct syntax is process.env.VARIABLE_NAME
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -11,7 +9,6 @@ const supabase = createClient(
 export async function GET() {
   try {
     // 1. Fetch the latest live competition data from the API
-    // We replaced the hardcoded key with the secure process.env call
     const apiResponse = await fetch(`https://api.football-data.org/v4/competitions/WC/matches`, {
       headers: { 'X-Auth-Token': process.env.API_FOOTBALL_API_KEY! },
       cache: 'no-store'
@@ -24,7 +21,6 @@ export async function GET() {
     // 2. FETCH MAP: Build a dictionary mapping API IDs directly to YOUR local IDs
     const { data: localTeams, error: teamsError } = await supabase
       .from('teams') 
-      // FIX 1: Updated to use 'team_id' based on your CSV schema
       .select('team_id, api_team_id') 
 
     if (teamsError) throw teamsError
@@ -32,20 +28,19 @@ export async function GET() {
     const teamLookup: Record<number, number> = {}
     localTeams?.forEach(team => {
       if (team.api_team_id) {
-        teamLookup[team.api_team_id] = team.team_id // FIX 1 applied here
+        teamLookup[team.api_team_id] = team.team_id 
       }
     })
 
-    // 3. Grab your unlinked knockout matches from Supabase
+    // 3. THE FIX: Grab matches that are missing the real team IDs (instead of API IDs)
     const { data: dbMatches, error: dbError } = await supabase
       .from('matches')
-      // FIX 2: Added home_team and away_team so TypeScript knows they exist
-      .select('match_id, kickoff_utc, round, home_team, away_team')
-      .is('api_fixture_id', null)
+      .select('match_id, kickoff_utc, round, home_team, away_team, api_fixture_id')
+      .or('home_team_id.is.null,away_team_id.is.null') // <-- This forces it to pull matches with placeholders!
 
     if (dbError) throw dbError
     if (!dbMatches || dbMatches.length === 0) {
-      return NextResponse.json({ message: 'All matches are already synchronized!' })
+      return NextResponse.json({ message: 'All matches are already synchronized with real teams!' })
     }
 
     let updatedCount = 0
@@ -71,7 +66,7 @@ export async function GET() {
         await supabase
           .from('matches')
           .update({
-            api_fixture_id: matchingApiMatch.id,
+            api_fixture_id: matchingApiMatch.id, // Keeps your pre-filled ID safe
             home_team: matchingApiMatch.homeTeam?.name || dbMatch.home_team,
             away_team: matchingApiMatch.awayTeam?.name || dbMatch.away_team,
             home_team_id: localHomeId, 
@@ -83,7 +78,7 @@ export async function GET() {
       }
     }
 
-    return NextResponse.json({ message: `Successfully synchronized ${updatedCount} knockout fixtures using numeric ID mapping.` })
+    return NextResponse.json({ message: `Successfully synchronized ${updatedCount} knockout fixtures with real teams!` })
 
   } catch (error: any) {
     console.error('[sync-fixtures] Error:', error)
@@ -91,7 +86,7 @@ export async function GET() {
   }
 }
 
-// Add this at the absolute bottom of api/admin/sync-fixtures/route.ts
+// QStash POST safety net
 export async function POST() {
   return GET();
 }
