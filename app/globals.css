@@ -131,3 +131,8 @@
     @apply bg-card/80 backdrop-blur-xl border-border/50;
   }
 }
+
+/* Force Twemoji to load before standard text fonts */
+* {
+  font-family: "Twemoji Country Flags", var(--font-geist), ui-sans-serif, system-ui, sans-serif !important;
+}

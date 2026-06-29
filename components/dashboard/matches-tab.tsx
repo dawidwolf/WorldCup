@@ -1,4 +1,4 @@
-﻿﻿﻿﻿"use client"
+﻿﻿"use client"
 
 import { useState, useEffect, useRef, useMemo, forwardRef, useImperativeHandle, useLayoutEffect } from "react"
 import { supabase } from "@/lib/supabase"
@@ -27,6 +27,7 @@ type Match = {
   away_flag?: string | null
   home_score?: number | null
   away_score?: number | null
+  penalty_winner?: string | null // <-- ADDED THIS LINE
 }
 
 type Prediction = {
@@ -605,6 +606,7 @@ export const MatchesTab = forwardRef<MatchesTabActions, MatchesTabProps>(({ curr
                 isSaving={!!saving[m.match_id]}
                 activePoolId={activePoolId}
                 currentUserId={currentUserId}
+                penaltyWinner={m.penalty_winner} // <-- ADDED THIS LINE
               />
             )
           }
@@ -702,6 +704,7 @@ export const MatchesTab = forwardRef<MatchesTabActions, MatchesTabProps>(({ curr
                   isSaving={!!saving[m.match_id]}
                   activePoolId={activePoolId}
                   currentUserId={currentUserId}
+                  penaltyWinner={m.penalty_winner} // <-- ADDED THIS LINE
                 />
               )
             })

@@ -34,6 +34,7 @@ interface MatchCardProps {
   isSaving?: boolean
   activePoolId?: number | null
   currentUserId?: number | null
+  penaltyWinner?: string | null // <-- ADDED THIS LINE
 }
 
 export function MatchCard({
@@ -57,6 +58,7 @@ export function MatchCard({
   isSaving = false,
   activePoolId = null,
   currentUserId = null,
+  penaltyWinner, // <-- ADDED THIS LINE
   ...props
 }: MatchCardProps & React.HTMLAttributes<HTMLDivElement>): import("react/jsx-runtime").JSX.Element {
   const { t } = useTournamentData()
@@ -142,7 +144,6 @@ export function MatchCard({
     onPredictionChange?.(id, h, a)
   }
 
-  // Determine the status badge to show on the top right
   // Determine the status badge to show on the top right
   const renderStatusBadge = () => {
     if (isSaving) {
@@ -242,10 +243,14 @@ export function MatchCard({
         {isFinishedByStatus && (
           <div className="col-span-3 text-center text-sm text-muted-foreground mb-1">{t("Final score")}</div>
         )}
+        
         {/* Home Team */}
         <div className="flex flex-col items-center">
           <span className="text-3xl">{homeTeam.flag}</span>
-          <span className="font-bold text-foreground text-sm">{homeTeam.code}</span>
+          <div className="flex items-center justify-center">
+            <span className="font-bold text-foreground text-sm">{homeTeam.code}</span>
+            {penaltyWinner === 'home' && <span className="text-primary text-xs ml-1 font-bold">(p)</span>}
+          </div>
         </div>
 
         {/* Score Input */}
@@ -312,7 +317,10 @@ export function MatchCard({
         {/* Away Team */}
         <div className="flex flex-col items-center">
           <span className="text-3xl">{awayTeam.flag}</span>
-          <span className="font-bold text-foreground text-sm">{awayTeam.code}</span>
+          <div className="flex items-center justify-center">
+            <span className="font-bold text-foreground text-sm">{awayTeam.code}</span>
+            {penaltyWinner === 'away' && <span className="text-primary text-xs ml-1 font-bold">(p)</span>}
+          </div>
         </div>
       </div>
 

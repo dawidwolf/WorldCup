@@ -54,6 +54,10 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>): React.JSX.Element {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} antialiased`} suppressHydrationWarning>
+      <head>
+        {/* ADD THIS LINE TO FIX WINDOWS FLAGS */}
+        <link href="https://cdn.jsdelivr.net/npm/country-flag-emoji-polyfill@0.1/dist/TwemojiCountryFlags.css" rel="stylesheet" />
+      </head>
       <body className="font-sans antialiased min-h-screen bg-background text-foreground" suppressHydrationWarning>
         <ThemeProvider
           attribute="class"

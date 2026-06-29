@@ -48,6 +48,7 @@ export async function POST(request: Request) {
     let isFinished = false
     let homeScore = null
     let awayScore = null
+    let penaltyWinner = null // <-- Added for penalty logic
 
     try {
       // SAFETY NET 1: AbortController prevents API from hanging Vercel
@@ -67,16 +68,27 @@ export async function POST(request: Request) {
         if (textData) {
           const matchData = JSON.parse(textData)
           
-          // SAFETY NET 2: Bulletproof Parser (Catches Regular vs Full Time)
+          // SAFETY NET 2: Bulletproof Parser (Strict Open-Play Goals)
           const scoreObj = matchData.score || {};
-          homeScore = scoreObj.fullTime?.home ?? scoreObj.regularTime?.home;
-          awayScore = scoreObj.fullTime?.away ?? scoreObj.regularTime?.away;
+          
+          // 1. Force the score to be the Extra Time or Regular Time score (never the shootout score)
+          homeScore = scoreObj.extraTime?.home ?? scoreObj.regularTime?.home ?? scoreObj.fullTime?.home;
+          awayScore = scoreObj.extraTime?.away ?? scoreObj.regularTime?.away ?? scoreObj.fullTime?.away;
+          
+          // 2. Safely detect if a penalty shootout happened
+          if (scoreObj.penalties && scoreObj.penalties.home !== null && scoreObj.penalties.away !== null) {
+            if (scoreObj.penalties.home > scoreObj.penalties.away) {
+              penaltyWinner = 'home';
+            } else if (scoreObj.penalties.away > scoreObj.penalties.home) {
+              penaltyWinner = 'away';
+            }
+          }
           
           isFinished = matchData.status === 'FINISHED' || matchData.status === 'AWARDED';
           
           console.log(`=== DEBUG MATCH ${matchId} ===`)
           console.log(`RAW STATUS: ${matchData.status}`)
-          console.log(`PARSED: Home: ${homeScore}, Away: ${awayScore}, isFinished: ${isFinished}`)
+          console.log(`PARSED: Home: ${homeScore}, Away: ${awayScore}, isFinished: ${isFinished}, penaltyWinner: ${penaltyWinner}`)
           console.log(`===========================`)
         }
       }
@@ -87,10 +99,11 @@ export async function POST(request: Request) {
     if (isFinished && homeScore != null && awayScore != null) {
       // SAFETY NET 3: Two-Step DB Update (Prevents Trigger Timeout)
       
-      // Step A: Update scores only
+      // Step A: Update scores and penalty winner only
       await supabase.from('matches').update({
         home_score: homeScore,
         away_score: awayScore,
+        penalty_winner: penaltyWinner, // <-- Added penalty winner injection
         status: 'FT',
       }).eq('match_id', matchId)
 
