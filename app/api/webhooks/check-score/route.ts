@@ -71,11 +71,26 @@ export async function POST(request: Request) {
           // SAFETY NET 2: Bulletproof Parser (Strict Open-Play Goals)
           const scoreObj = matchData.score || {};
           
-          // 1. Force the score to be the Extra Time or Regular Time score (never the shootout score)
-          homeScore = scoreObj.extraTime?.home ?? scoreObj.regularTime?.home ?? scoreObj.fullTime?.home;
-          awayScore = scoreObj.extraTime?.away ?? scoreObj.regularTime?.away ?? scoreObj.fullTime?.away;
+          const hasRegularTime = scoreObj.regularTime && scoreObj.regularTime.home !== null;
+          const hasExtraTime = scoreObj.extraTime && scoreObj.extraTime.home !== null;
           
-          // 2. Safely detect if a penalty shootout happened
+          if (hasRegularTime) {
+            // 1. Start with the 90-minute score
+            homeScore = scoreObj.regularTime.home;
+            awayScore = scoreObj.regularTime.away;
+            
+            // 2. If it went to Extra Time, explicitly ADD the extra time goals to the total!
+            if (hasExtraTime) {
+              homeScore += scoreObj.extraTime.home;
+              awayScore += scoreObj.extraTime.away;
+            }
+          } else {
+            // Fallback if the API only provides a generic full time score
+            homeScore = scoreObj.fullTime?.home;
+            awayScore = scoreObj.fullTime?.away;
+          }
+          
+          // 3. Safely detect if a penalty shootout happened for the visual (p) badge
           if (scoreObj.penalties && scoreObj.penalties.home !== null && scoreObj.penalties.away !== null) {
             if (scoreObj.penalties.home > scoreObj.penalties.away) {
               penaltyWinner = 'home';

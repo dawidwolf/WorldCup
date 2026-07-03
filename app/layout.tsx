@@ -7,6 +7,7 @@ import { Analytics } from '@vercel/analytics/next'
 import { Toaster } from '@/components/ui/sonner'
 import { ThemeProvider } from '@/components/theme-provider'
 import './globals.css'
+import { AutoRefreshHandler } from '@/components/auto-refresh-handler'
 
 const geistSans = Geist({ subsets: ["latin"], variable: '--font-geist' });
 const geistMono = Geist_Mono({ subsets: ["latin"], variable: '--font-geist-mono' });
@@ -65,6 +66,7 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
+          <AutoRefreshHandler />
           {children}
           <Toaster position="top-center" />
         </ThemeProvider>

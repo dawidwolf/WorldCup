@@ -51,6 +51,7 @@ interface TournamentDataContextType {
   isLoading: boolean
   error: string | null
   refreshData: () => Promise<void>
+  silentRefresh: () => Promise<void> // <-- ADDED THIS LINE
   updatePrediction: (matchId: number, home: number | null, away: number | null) => Promise<void>
   updateBonusPick: (type: 'winner' | 'scorer', id: number) => Promise<{ error: string | null }>
   setActivePool: (poolId: number | null) => void
@@ -230,7 +231,8 @@ export function TournamentDataProvider({ children, userId }: { children: React.R
     }
   }, [])
 
-  const fetchData = useCallback(async () => {
+  // <-- UPDATED SIGNATURE: Accept isSilent parameter
+  const fetchData = useCallback(async (isSilent = false) => {
     if (!currentUserId) {
       setMatches([])
       setPredictions({})
@@ -244,7 +246,9 @@ export function TournamentDataProvider({ children, userId }: { children: React.R
       return
     }
 
-    setIsLoading(true)
+    // <-- UPDATED LOGIC: Only show loading spinner if it's not a silent refresh
+    if (!isSilent) setIsLoading(true)
+    
     try {
       const [matchesRes, predictionsRes, userRes, teamsRes, playersRes, standingsRes, poolsRes, firstMatchRes] = await Promise.all([
         supabase.from("matches").select("*").order("kickoff_utc", { ascending: true }),
@@ -526,7 +530,8 @@ export function TournamentDataProvider({ children, userId }: { children: React.R
       isBonusLocked,
       isLoading, 
       error, 
-      refreshData: fetchData, 
+      refreshData: () => fetchData(false), 
+      silentRefresh: () => fetchData(true), // <-- ADDED THIS LINE
       updatePrediction,
       updateBonusPick,
       setActivePool,
