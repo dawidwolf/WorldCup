@@ -15,6 +15,7 @@ import { toast } from "sonner"
 import { Spinner } from "@/components/ui/spinner"
 import { TournamentDataProvider, useTournamentData } from "@/context/tournament-data-context"
 import { UserPool } from "@/components/dashboard/profile-tab"
+import { AutoRefreshHandler } from '@/components/auto-refresh-handler'
 
 type DashboardTab = "matches" | "rankings" | "players" | "profile"
 
@@ -302,6 +303,7 @@ export default function Page() {
     <div className="min-h-screen bg-background transition-colors duration-150">
       {/* Passing user?.user_id || null guarantees context initializes safely even when logged out! */}
       <TournamentDataProvider userId={user ? user.user_id : null}>
+        <AutoRefreshHandler />
         {view === "auth" || !user ? (
           <AuthScreen onSuccess={handleLogin} />
         ) : (
