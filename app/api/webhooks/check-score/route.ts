@@ -91,11 +91,22 @@ export async function POST(request: Request) {
           }
           
           // 3. Safely detect if a penalty shootout happened for the visual (p) badge
-          if (scoreObj.penalties && scoreObj.penalties.home !== null && scoreObj.penalties.away !== null) {
-            if (scoreObj.penalties.home > scoreObj.penalties.away) {
+          // We now use the API's explicit 'duration' and 'winner' flags instead of just counting goals
+          if (scoreObj.duration === 'PENALTY_SHOOTOUT' || (scoreObj.penalties && scoreObj.penalties.home !== null)) {
+            
+            // Primary check: The API explicitly tells us who won
+            if (scoreObj.winner === 'HOME_TEAM') {
               penaltyWinner = 'home';
-            } else if (scoreObj.penalties.away > scoreObj.penalties.home) {
+            } else if (scoreObj.winner === 'AWAY_TEAM') {
               penaltyWinner = 'away';
+            } 
+            // Fallback check: Manually calculate from the goals if the string is missing
+            else if (scoreObj.penalties && scoreObj.penalties.home !== null && scoreObj.penalties.away !== null) {
+              if (scoreObj.penalties.home > scoreObj.penalties.away) {
+                penaltyWinner = 'home';
+              } else if (scoreObj.penalties.away > scoreObj.penalties.home) {
+                penaltyWinner = 'away';
+              }
             }
           }
           
