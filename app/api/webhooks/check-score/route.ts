@@ -91,7 +91,6 @@ export async function POST(request: Request) {
           }
           
           // 3. Safely detect if a penalty shootout happened for the visual (p) badge
-          // We now use the API's explicit 'duration' and 'winner' flags instead of just counting goals
           if (scoreObj.duration === 'PENALTY_SHOOTOUT' || (scoreObj.penalties && scoreObj.penalties.home !== null)) {
             
             // Primary check: The API explicitly tells us who won
@@ -112,6 +111,20 @@ export async function POST(request: Request) {
           
           isFinished = matchData.status === 'FINISHED' || matchData.status === 'AWARDED';
           
+          // =========================================================================
+          // 🚨 THE KNOCKOUT GUARDRAIL 🚨
+          // Outsmarting the API's premature "FINISHED" status at 90 minutes.
+          // Soccer Rule: A knockout match CANNOT end in a tie. 
+          // If it's a tie without a penalty winner, it's not over yet!
+          // =========================================================================
+          const isKnockout = typeof matchData.stage === 'string' && !matchData.stage.includes('GROUP');
+          
+          if (isFinished && isKnockout && homeScore === awayScore && !penaltyWinner) {
+            console.log(`[check-score] Premature API finish! Knockout tie detected (${homeScore}-${awayScore}). Waiting for Extra Time/Penalties...`);
+            isFinished = false; // Force it to ignore the API and drop down to the polling retry loop
+          }
+          // =========================================================================
+
           console.log(`=== DEBUG MATCH ${matchId} ===`)
           console.log(`RAW STATUS: ${matchData.status}`)
           console.log(`PARSED: Home: ${homeScore}, Away: ${awayScore}, isFinished: ${isFinished}, penaltyWinner: ${penaltyWinner}`)
@@ -129,7 +142,7 @@ export async function POST(request: Request) {
       await supabase.from('matches').update({
         home_score: homeScore,
         away_score: awayScore,
-        penalty_winner: penaltyWinner, // <-- Added penalty winner injection
+        penalty_winner: penaltyWinner, 
         status: 'FT',
       }).eq('match_id', matchId)
 
@@ -143,8 +156,6 @@ export async function POST(request: Request) {
         console.error('[check-score] Supabase update error:', updateError)
         throw new Error("DB Update Failed");
       }
-
-      // --- THE NEW AUTOMATION BLOCK ---
       
       // 1. Trigger the Top Scorers check (10 seconds from now)
       await fetch(`https://qstash.upstash.io/v2/publish/${BASE_URL}/api/admin/sync-scorers`, {
