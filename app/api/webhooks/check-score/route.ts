@@ -45,10 +45,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: 'Invalid API ID' }, { status: 200 })
     }
 
+    // --- SCOPE HOISTING: Made isFinal accessible to the triggers below! ---
     let isFinished = false
+    let isFinal = false 
     let homeScore = null
     let awayScore = null
-    let penaltyWinner = null // <-- Added for penalty logic
+    let penaltyWinner = null 
 
     try {
       // SAFETY NET 1: AbortController prevents API from hanging Vercel
@@ -113,11 +115,9 @@ export async function POST(request: Request) {
           
           // =========================================================================
           // 🚨 THE KNOCKOUT GUARDRAIL 🚨
-          // Outsmarting the API's premature "FINISHED" status at 90 minutes.
-          // Soccer Rule: A knockout match CANNOT end in a tie. 
-          // If it's a tie without a penalty winner, it's not over yet!
           // =========================================================================
           const isKnockout = typeof matchData.stage === 'string' && !matchData.stage.includes('GROUP');
+          isFinal = matchData.stage === 'FINAL'; // <-- Updated variable here
           
           if (isFinished && isKnockout && homeScore === awayScore && !penaltyWinner) {
             console.log(`[check-score] Premature API finish! Knockout tie detected (${homeScore}-${awayScore}). Waiting for Extra Time/Penalties...`);
@@ -127,7 +127,7 @@ export async function POST(request: Request) {
 
           console.log(`=== DEBUG MATCH ${matchId} ===`)
           console.log(`RAW STATUS: ${matchData.status}`)
-          console.log(`PARSED: Home: ${homeScore}, Away: ${awayScore}, isFinished: ${isFinished}, penaltyWinner: ${penaltyWinner}`)
+          console.log(`PARSED: Home: ${homeScore}, Away: ${awayScore}, isFinished: ${isFinished}, penaltyWinner: ${penaltyWinner}, isFinal: ${isFinal}`)
           console.log(`===========================`)
         }
       }
@@ -157,6 +157,8 @@ export async function POST(request: Request) {
         throw new Error("DB Update Failed");
       }
       
+      // --- THE AUTOMATION BLOCK ---
+
       // 1. Trigger the Top Scorers check (10 seconds from now)
       await fetch(`https://qstash.upstash.io/v2/publish/${BASE_URL}/api/admin/sync-scorers`, {
         method: 'POST',
@@ -166,7 +168,7 @@ export async function POST(request: Request) {
         }
       });
 
-      // 2. Trigger the Knockout Bracket check (30 minutes from now)
+      // 2. Trigger the Knockout Bracket check (5 minutes from now)
       await fetch(`https://qstash.upstash.io/v2/publish/${BASE_URL}/api/admin/sync-fixtures`, {
         method: 'POST',
         headers: {
@@ -174,6 +176,19 @@ export async function POST(request: Request) {
           'Upstash-Delay': '5m', 
         }
       });
+
+      // 3. THE GRAND FINALE TRIGGER (Runs 2 minutes after the final match)
+      if (isFinal) {
+        await fetch(`https://qstash.upstash.io/v2/publish/${BASE_URL}/api/admin/sync-tournament-end`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${process.env.QSTASH_TOKEN}`,
+            'Content-Type': 'application/json',
+            'Upstash-Delay': '2m', 
+          },
+          body: JSON.stringify({ finalMatchId: matchId })
+        });
+      }
 
       return NextResponse.json({ message: `Match ${matchId} finished and updated. Scorers and Fixtures scheduled.` }, { status: 200 })
     } 

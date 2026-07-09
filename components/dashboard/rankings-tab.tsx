@@ -22,9 +22,8 @@ interface RankingsTabProps {
 type RankedUser = import("@/context/tournament-data-context").RankedUser
 
 export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProps) {
-  // Add a comment to trigger re-save
-  const { t, rankings, isLoading, pools, activePoolId, players, teams } = useTournamentData()
-  const REVEAL_ALL_PICKS = true // ⚡ Set to true to reveal all picks and test the profile modal without needing multiple accounts
+  const { t, rankings, isLoading, pools, activePoolId, players, teams, matches } = useTournamentData()
+  const REVEAL_ALL_PICKS = true // ⚡ Set to true to reveal all picks and test the profile modal
   const [selectedPlayer, setSelectedPlayer] = useState<null | any>(null)
   const [showInvite, setShowInvite] = useState(false)
 
@@ -32,6 +31,35 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
   const loading = isLoading
   const isAdmin = pools.find(p => p.pool_id === activePoolId)?.is_admin ?? false
   
+  // =======================================================================
+  // THE GRAND FINALE LOGIC
+  // Calculate who won the tournament and who the top scorers are on the fly
+  // =======================================================================
+  const finalMatch = matches.find(m => m.round === "Final")
+  const isTournamentFinished = finalMatch?.is_finished ?? false
+  
+  let actualWinnerId: number | null = null
+  let topScorerIds: number[] = []
+
+  if (isTournamentFinished && finalMatch) {
+    // 1. Determine tournament winner
+    if ((finalMatch as any).penalty_winner === 'home') {
+      actualWinnerId = finalMatch.home_team_id ?? null
+    } else if ((finalMatch as any).penalty_winner === 'away') {
+      actualWinnerId = finalMatch.away_team_id ?? null
+    } else if (finalMatch.home_score != null && finalMatch.away_score != null) {
+      if (finalMatch.home_score > finalMatch.away_score) actualWinnerId = finalMatch.home_team_id ?? null
+      else if (finalMatch.away_score > finalMatch.home_score) actualWinnerId = finalMatch.away_team_id ?? null
+    }
+
+    // 2. Determine top scorer(s)
+    const maxGoals = players.length > 0 ? Math.max(...players.map(p => p.goals ?? 0)) : 0
+    if (maxGoals > 0) {
+      topScorerIds = players.filter(p => p.goals === maxGoals).map(p => p.player_id)
+    }
+  }
+  // =======================================================================
+
   const { closeWithHistory: closeInvite } = useHistoryLayer({
     layerId: `rankings-invite-${poolId}`,
     isOpen: showInvite,
@@ -45,7 +73,8 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
   })
 
   const getInviteUrl = () => {
-    return "worldcuppred.vercel.app"
+    if (!poolName) return "worldcuppred.vercel.app"
+    return `worldcuppred.vercel.app?pool=${encodeURIComponent(poolName)}`
   }
 
   const copyInvite = () => {
@@ -88,9 +117,14 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
     return "bg-muted/60 text-muted-foreground border border-border/50"
   }
 
-  // Convert ranked user into the props expected by ProfileTab
+  const getFinishedRankRowClassName = (rank: number) => {
+    if (rank === 1) return "bg-amber-500/20"
+    if (rank === 2) return "bg-slate-400/20"
+    if (rank === 3) return "bg-orange-700/20"
+    return ""
+  }
+
   const toProfileProps = (player: RankedUser) => {
-    // ⚡ Determine if this specific profile's picks should be hidden
     const isHidden = !REVEAL_ALL_PICKS && !player.isCurrentUser
 
     const scorerInfo = player.scorerId ? players.find(p => p.player_id === player.scorerId) : null
@@ -143,59 +177,77 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
 
       {/* Friend Rows */}
       <div className="space-y-2">
-        {users.map((friend) => (
-          <button
-            key={friend.id}
-            onClick={() => openProfile(friend)}
-            className={cn(
-              "relative grid grid-cols-[2.5rem_1fr_4rem_3rem_2rem] gap-2 items-center px-3 py-3 rounded-2xl bg-muted/25 border border-border/50 transition-all text-left w-full overflow-hidden",
-              "cursor-pointer hover:border-primary/30 active:scale-[0.98]", friend.isCurrentUser && "border-primary/50 bg-muted/35"
-            )}
-          >
-            {/* Rank Badge */}
-            <div className="flex justify-center">
-              <span
-                className={cn(
-                  "w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black italic",
-                  getRankBadgeClassName(friend.rank, friend.points)
+        {users.map((friend) => {
+          
+          // Calculate bonus points for this specific user
+          let bonus = 0;
+          if (isTournamentFinished) {
+            if (actualWinnerId && friend.winnerId === actualWinnerId) bonus += 10;
+            if (friend.scorerId && topScorerIds.includes(friend.scorerId)) bonus += 10;
+          }
+
+          return (
+            <button
+              key={friend.id}
+              onClick={() => openProfile(friend)}
+              className={cn(
+                "relative grid grid-cols-[2.5rem_1fr_4rem_3rem_2rem] gap-2 items-center px-3 py-3 rounded-2xl bg-muted/25 border border-border/50 transition-all text-left w-full overflow-hidden",
+                "cursor-pointer hover:border-primary/30 active:scale-[0.98]",
+                friend.isCurrentUser && "border-primary/50 bg-muted/35",
+                isTournamentFinished && getFinishedRankRowClassName(friend.rank)
+              )}
+            >
+              {/* Rank Badge */}
+              <div className="flex justify-center">
+                <span
+                  className={cn(
+                    "w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black italic",
+                    getRankBadgeClassName(friend.rank, friend.points)
+                  )}
+                >
+                  {friend.rank}
+                </span>
+              </div>
+
+              {/* User Info with Conditional Bonus Badge */}
+              <div className="flex items-center gap-1 min-w-0">
+                <span
+                  className={cn(
+                    "text-foreground text-sm font-semibold truncate",
+                    friend.isCurrentUser && "text-primary italic"
+                  )}
+                >
+                  {friend.name.toUpperCase()}
+                  {friend.isCurrentUser && " " + t("(You)")}
+                </span>
+                
+                {/* THE GREEN BONUS BADGE */}
+                {bonus > 0 && (
+                  <span className="inline-flex shrink-0 items-center justify-center bg-primary/20 text-primary border border-primary/30 text-[10px] font-black px-1.5 py-[1px] rounded shadow-sm ml-1">
+                    +{bonus}
+                  </span>
                 )}
-              >
-                {friend.rank}
-              </span>
-            </div>
+              </div>
 
-            {/* User Info */}
-            <div className="flex items-center gap-2 min-w-0">
-              <span
-                className={cn(
-                  "text-foreground text-sm font-semibold truncate",
-                  friend.isCurrentUser && "text-primary italic"
-                )}
-              >
-                {friend.name.toUpperCase()}
-                {friend.isCurrentUser && " " + t("(You)")}
-              </span>
-            </div>
+              {/* Winner Pick Flag */}
+              <div className="flex justify-center items-center">
+                <span className="text-xl filter drop-shadow-sm select-none">
+                  {friend.isCurrentUser || REVEAL_ALL_PICKS ? friend.winnerPick : "🔒"}
+                </span>
+              </div>
 
-            {/* Winner Pick Flag */}
-            <div className="flex justify-center items-center">
-              <span className="text-xl filter drop-shadow-sm select-none">
-                {/* ⚡ Hides the flag with a lock emoji for other users if the switch is false */}
-                {friend.isCurrentUser || REVEAL_ALL_PICKS ? friend.winnerPick : "🔒"}
-              </span>
-            </div>
+              {/* Exact Hits */}
+              <div className="flex justify-center">
+                <span className="text-muted-foreground font-bold text-xs">({friend.exactHits})</span>
+              </div>
 
-            {/* Exact Hits */}
-            <div className="flex justify-center">
-              <span className="text-muted-foreground font-bold text-xs">({friend.exactHits})</span>
-            </div>
-
-            {/* Points */}
-            <div className="text-right">
-              <span className="text-primary font-black text-sm tracking-tight">{friend.points}</span>
-            </div>
-          </button>
-        ))}
+              {/* Points */}
+              <div className="text-right">
+                <span className="text-primary font-black text-sm tracking-tight">{friend.points}</span>
+              </div>
+            </button>
+          )
+        })}
         
         {users.length === 0 && (
           <div className="text-center py-10 bg-card/50 rounded-2xl border border-dashed border-border">
@@ -215,13 +267,11 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
       </div>
 
       {/* Invite Modal */}
-      {/* Invite Modal */}
       <Dialog open={showInvite} onOpenChange={(open) => (open ? setShowInvite(true) : closeInvite())}>
         <DialogContent className="w-[calc(100%-32px)] max-w-sm rounded-2xl bg-card border-border/50 shadow-2xl p-6 mx-auto">
           <div className="text-center space-y-4">
             <h3 className="text-lg font-bold text-foreground">{t("Invite to")} <span className="text-primary">{poolName?.toUpperCase()}</span></h3>
             
-            {/* ⚡ UPDATED: Changed instruction string for consistency across tabs */}
             <p className="text-xs text-muted-foreground leading-relaxed px-1">
               {t("Scan the qr code, register and enter the groups name to join.")}
             </p>
@@ -270,7 +320,7 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
                 {...toProfileProps(selectedPlayer)} 
                 onNavigateToRankings={closeSelectedPlayer} 
                 isPublicView={true} 
-                hideLanguageToggle={true} // ⚡ Add this flag here
+                hideLanguageToggle={true}
               />
               
               <button 
