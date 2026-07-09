@@ -184,7 +184,7 @@ export async function POST(request: Request) {
           headers: {
             'Authorization': `Bearer ${process.env.QSTASH_TOKEN}`,
             'Content-Type': 'application/json',
-            'Upstash-Delay': '2m', 
+            'Upstash-Delay': '30s', 
           },
           body: JSON.stringify({ finalMatchId: matchId })
         });
