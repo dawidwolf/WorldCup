@@ -171,7 +171,7 @@ export async function POST(request: Request) {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${process.env.QSTASH_TOKEN}`,
-          'Upstash-Delay': '30m', 
+          'Upstash-Delay': '5m', 
         }
       });
 
