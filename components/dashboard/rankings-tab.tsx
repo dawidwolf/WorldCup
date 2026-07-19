@@ -35,7 +35,7 @@ export function RankingsTab({ poolId, poolName, currentUserId }: RankingsTabProp
   // THE GRAND FINALE LOGIC
   // Calculate who won the tournament and who the top scorers are on the fly
   // =======================================================================
-  const finalMatch = matches.find(m => m.round === "Final")
+  const finalMatch = matches.find(m => m.round?.toLowerCase() === "final")
   const isTournamentFinished = finalMatch?.is_finished ?? false
   
   let actualWinnerId: number | null = null
